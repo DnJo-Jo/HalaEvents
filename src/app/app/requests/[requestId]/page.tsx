@@ -17,6 +17,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { formatInZone } from "@/lib/dates";
 import { declineQuoteAction, setRequestStatusAction } from "@/modules/bookings/actions";
+import { proposeBookingAction } from "@/modules/bookings/booking-actions";
 import { quoteDisplayStatus } from "@/modules/bookings/rules";
 import { getRequestForOrganizer } from "@/modules/bookings/service";
 import { formatMoney } from "@/modules/profiles/labels";
@@ -155,6 +156,20 @@ export default async function RequestPage({ params }: { params: Promise<{ reques
                             >
                               Decline
                             </ConfirmSubmit>
+                          </ActionForm>
+                        )}
+                        {display === "submitted" && r.status !== "cancelled" && (
+                          <ActionForm
+                            action={proposeBookingAction.bind(null, q.id)}
+                            className="mt-2 space-y-2"
+                            aria-label={`Propose booking with ${nameOf(q.provider_id)}`}
+                          >
+                            <SubmitButton size="sm" variant="secondary">
+                              Propose booking
+                            </SubmitButton>
+                            <span className="block text-xs text-ink-muted">
+                              Not booked until approved and confirmed by the provider.
+                            </span>
                           </ActionForm>
                         )}
                       </TD>

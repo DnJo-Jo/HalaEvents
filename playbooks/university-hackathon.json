@@ -1,0 +1,1049 @@
+{
+  "$comment": "HalaEvents playbook. Validated by PlaybookSchema (src/modules/ai/playbook.ts). The 'why' and description texts are planning prompts written by the HalaEvents team, not legal requirements or verified sources. Bump 'version' when a question's meaning changes.",
+  "id": "university-hackathon",
+  "version": 2,
+  "eventType": "university_hackathon",
+  "title": "University hackathon",
+  "recovery": {
+    "venueCancellation": {
+      "principles": [
+        "A venue cancellation does not cancel any other booking. Catering, transport, AV and other contracts differ: mark them for review or reconfirmation and ask the provider.",
+        "Never state that a replacement venue is available, that a provider agreed, or that a permit or clearance carries over, unless that party has said so.",
+        "Prices come only from quotes on record. If there is no quote, say the price is unknown.",
+        "Anything sent to attendees or providers is a draft until an organizer approves the exact text.",
+        "Keep dependent tasks in order: move a task only when the work it waits for moves."
+      ],
+      "reconfirm": [
+        {
+          "category": "catering",
+          "ask": [
+            "Do the delivery address, kitchen access and timing depend on the original venue?",
+            "What do your terms say about a change of location or date?"
+          ]
+        },
+        {
+          "category": "av",
+          "ask": [
+            "Does your equipment list and set-up time still fit a different room?",
+            "What are your terms for a change of location or date?"
+          ]
+        },
+        {
+          "category": "transport",
+          "ask": [
+            "Do pick-up and drop-off points change with the venue?",
+            "What are your terms for a change of route or date?"
+          ]
+        },
+        {
+          "category": "security",
+          "ask": ["Does the security plan depend on the original venue's layout or access rules?"]
+        }
+      ],
+      "questionsForReplacementVenue": [
+        "Are the event dates and hours free, and can you hold them while we decide?",
+        "What capacity, power, Wi-Fi and overnight rules apply?",
+        "What are the access, loading and accessibility arrangements?",
+        "What are your cancellation and change terms?"
+      ],
+      "accessAndComplianceNotes": [
+        "Venue-related permissions and venue-policy checks that were cleared for the original venue need to be reassessed for the new one.",
+        "Access arrangements (entry, accessibility, loading, parking) are venue-specific and unknown for a new venue until the venue answers."
+      ]
+    }
+  },
+  "questions": [
+    {
+      "key": "audience.level",
+      "type": "single_choice",
+      "required": true,
+      "text": "Who is the hackathon for?",
+      "why": "Decides whether age checks, guardian consent and supervision tasks are part of the plan.",
+      "options": [
+        {
+          "value": "university_students",
+          "label": "University students"
+        },
+        {
+          "value": "school_students",
+          "label": "School students"
+        },
+        {
+          "value": "mixed",
+          "label": "Mixed: school and university students"
+        },
+        {
+          "value": "open_public",
+          "label": "Open to the public"
+        }
+      ],
+      "when": []
+    },
+    {
+      "key": "audience.min_age",
+      "type": "number",
+      "required": true,
+      "min": 8,
+      "max": 99,
+      "unit": "years",
+      "text": "What is the minimum participant age?",
+      "why": "Participants under 18 usually need guardian consent and supervision arrangements.",
+      "when": [
+        {
+          "key": "audience.level",
+          "op": "in",
+          "values": ["school_students", "mixed", "open_public"]
+        }
+      ]
+    },
+    {
+      "key": "audience.guardian_consent",
+      "type": "single_choice",
+      "required": true,
+      "text": "Who will collect guardian consent for participants under 18?",
+      "why": "Consent collection becomes a task that must finish before participants are accepted.",
+      "when": [
+        {
+          "key": "audience.level",
+          "op": "in",
+          "values": ["school_students", "mixed"]
+        }
+      ],
+      "options": [
+        {
+          "value": "school",
+          "label": "The participants' schools"
+        },
+        {
+          "value": "organizer",
+          "label": "We will, through the registration form"
+        },
+        {
+          "value": "not_decided",
+          "label": "Not decided yet"
+        }
+      ]
+    },
+    {
+      "key": "audience.multi_institution",
+      "type": "boolean",
+      "required": true,
+      "text": "Will students from other universities or schools take part?",
+      "why": "External participants may need campus access passes and a contact at the host institution.",
+      "when": [
+        {
+          "key": "audience.level",
+          "op": "in",
+          "values": ["university_students", "mixed"]
+        }
+      ]
+    },
+    {
+      "key": "format.team_size",
+      "type": "number",
+      "required": true,
+      "min": 1,
+      "max": 10,
+      "unit": "people",
+      "text": "What is the maximum team size?",
+      "why": "Sets the registration form, judging slots and seating plan.",
+      "when": []
+    },
+    {
+      "key": "format.overnight",
+      "type": "boolean",
+      "required": true,
+      "text": "Will participants stay at the venue overnight?",
+      "why": "Overnight events need rest areas, overnight security and a supervision rota.",
+      "when": [
+        {
+          "key": "event.duration_hours",
+          "op": "gte",
+          "value": 12
+        }
+      ]
+    },
+    {
+      "key": "format.overnight_supervision",
+      "type": "single_choice",
+      "required": true,
+      "text": "How will participants under 18 be supervised overnight?",
+      "why": "Overnight supervision of minors has to be arranged and named before the event.",
+      "when": [
+        {
+          "key": "format.overnight",
+          "op": "equals",
+          "value": true
+        },
+        {
+          "key": "audience.level",
+          "op": "in",
+          "values": ["school_students", "mixed"]
+        }
+      ],
+      "options": [
+        {
+          "value": "school_staff",
+          "label": "Accompanying school staff"
+        },
+        {
+          "value": "organizer_staff",
+          "label": "Our own staff"
+        },
+        {
+          "value": "no_minors_overnight",
+          "label": "Under-18s leave before night"
+        },
+        {
+          "value": "not_decided",
+          "label": "Not decided yet"
+        }
+      ]
+    },
+    {
+      "key": "venue.on_campus",
+      "type": "boolean",
+      "required": true,
+      "text": "Will the hackathon take place on a university campus?",
+      "why": "Campus venues are usually booked through the university's facilities office.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "key": "venue.campus_booking",
+      "type": "single_choice",
+      "required": true,
+      "text": "Where is the campus venue booking?",
+      "why": "The venue booking is a dependency for most other tasks. HalaEvents records your answer; it doesn't check with the university.",
+      "when": [
+        {
+          "key": "venue.on_campus",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "options": [
+        {
+          "value": "confirmed_in_writing",
+          "label": "Confirmed in writing by the university"
+        },
+        {
+          "value": "requested",
+          "label": "Requested, waiting for a reply"
+        },
+        {
+          "value": "not_started",
+          "label": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "online.platform",
+      "type": "text",
+      "required": false,
+      "maxLength": 120,
+      "text": "Which platform will online participants use?",
+      "why": "The platform decides how links are sent and who sets up the online rooms.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "in",
+          "values": ["online", "hybrid"]
+        }
+      ]
+    },
+    {
+      "key": "catering.provided",
+      "type": "boolean",
+      "required": true,
+      "text": "Will you provide food and drinks?",
+      "why": "Adds catering tasks and lets you request catering quotes from the marketplace.",
+      "when": []
+    },
+    {
+      "key": "catering.dietary",
+      "type": "multi_choice",
+      "required": false,
+      "text": "Which dietary needs must the catering cover?",
+      "why": "Goes into catering requests and the registration form.",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "options": [
+        {
+          "value": "halal",
+          "label": "Halal"
+        },
+        {
+          "value": "vegetarian",
+          "label": "Vegetarian"
+        },
+        {
+          "value": "vegan",
+          "label": "Vegan"
+        },
+        {
+          "value": "gluten_free",
+          "label": "Gluten-free"
+        },
+        {
+          "value": "nut_free",
+          "label": "Nut-free"
+        }
+      ]
+    },
+    {
+      "key": "prizes.offered",
+      "type": "boolean",
+      "required": true,
+      "text": "Will there be prizes?",
+      "why": "Prizes add judging criteria, a prize budget and announcement tasks.",
+      "when": []
+    },
+    {
+      "key": "prizes.kind",
+      "type": "multi_choice",
+      "required": true,
+      "text": "What kind of prizes?",
+      "why": "Cash and sponsor-provided prizes may need payment arrangements and sponsor agreements.",
+      "when": [
+        {
+          "key": "prizes.offered",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "options": [
+        {
+          "value": "cash",
+          "label": "Cash"
+        },
+        {
+          "value": "devices",
+          "label": "Devices or hardware"
+        },
+        {
+          "value": "internships",
+          "label": "Internships or interviews"
+        },
+        {
+          "value": "vouchers",
+          "label": "Vouchers or credits"
+        }
+      ]
+    },
+    {
+      "key": "sponsors.expected",
+      "type": "boolean",
+      "required": true,
+      "text": "Do you expect sponsors?",
+      "why": "Adds sponsor outreach, branding and agreement tasks.",
+      "when": []
+    },
+    {
+      "key": "ip.ownership",
+      "type": "single_choice",
+      "required": true,
+      "text": "Who will own the projects built at the hackathon?",
+      "why": "Ownership terms belong in the participant agreement before registration opens.",
+      "options": [
+        {
+          "value": "participants",
+          "label": "The participants"
+        },
+        {
+          "value": "shared",
+          "label": "Shared with organizers or sponsors"
+        },
+        {
+          "value": "sponsor",
+          "label": "A sponsor"
+        },
+        {
+          "value": "not_decided",
+          "label": "Not decided yet"
+        }
+      ],
+      "when": []
+    },
+    {
+      "key": "media.photography",
+      "type": "boolean",
+      "required": true,
+      "text": "Will you photograph or film participants?",
+      "why": "Participants should know about photography in advance.",
+      "when": []
+    },
+    {
+      "key": "media.consent",
+      "type": "single_choice",
+      "required": true,
+      "text": "How will you collect photo consent?",
+      "why": "Consent wording becomes part of the registration form; minors' images usually need guardian consent.",
+      "when": [
+        {
+          "key": "media.photography",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "options": [
+        {
+          "value": "registration_checkbox",
+          "label": "A consent checkbox at registration"
+        },
+        {
+          "value": "separate_form",
+          "label": "A separate consent form"
+        },
+        {
+          "value": "not_decided",
+          "label": "Not decided yet"
+        }
+      ]
+    },
+    {
+      "key": "accessibility.ask_needs",
+      "type": "boolean",
+      "required": true,
+      "text": "Will the registration form ask about accessibility needs?",
+      "why": "Answers feed venue access checks and on-the-day support tasks.",
+      "when": []
+    }
+  ],
+  "taskTemplates": [
+    {
+      "key": "define_scope",
+      "title": "Confirm hackathon scope and theme",
+      "description": "Agree the theme, format, team size and success criteria with the organizing team.",
+      "category": "staffing",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -70
+      },
+      "ownerRole": "Lead organizer",
+      "dependsOn": [],
+      "when": [],
+      "requiredInfo": ["format.team_size"],
+      "risks": [],
+      "nextAction": "Hold a kickoff meeting and write down the theme and format."
+    },
+    {
+      "key": "set_budget",
+      "title": "Set the event budget",
+      "description": "Draft a budget covering venue, catering, prizes, swag and contingency.",
+      "category": "finance",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -63
+      },
+      "ownerRole": "Finance lead",
+      "dependsOn": ["define_scope"],
+      "when": [],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Draft budget lines and get sign-off from the sponsor or department."
+    },
+    {
+      "key": "book_campus_venue",
+      "title": "Book the campus venue",
+      "description": "Request the room or hall through the university facilities office and get the booking confirmed in writing.",
+      "category": "venue",
+      "priority": "critical",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -56
+      },
+      "ownerRole": "Venue lead",
+      "dependsOn": ["define_scope"],
+      "when": [
+        {
+          "key": "venue.on_campus",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": ["venue.on_campus", "venue.campus_booking"],
+      "risks": ["venue"],
+      "nextAction": "Send the booking request to the facilities office with dates and expected attendance."
+    },
+    {
+      "key": "source_external_venue",
+      "title": "Source an external venue",
+      "description": "Shortlist and request quotes from venues that fit the expected attendance and dates.",
+      "category": "venue",
+      "priority": "critical",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -56
+      },
+      "ownerRole": "Venue lead",
+      "dependsOn": ["set_budget"],
+      "when": [
+        {
+          "key": "venue.on_campus",
+          "op": "equals",
+          "value": false
+        }
+      ],
+      "requiredInfo": [],
+      "risks": ["venue"],
+      "nextAction": "Shortlist venues in the marketplace and request quotes.",
+      "providerCategory": "venue"
+    },
+    {
+      "key": "setup_online_platform",
+      "title": "Set up the online platform",
+      "description": "Create the online rooms, test access and write joining instructions.",
+      "category": "technology",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -14
+      },
+      "ownerRole": "Tech lead",
+      "dependsOn": [],
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "in",
+          "values": ["online", "hybrid"]
+        }
+      ],
+      "requiredInfo": ["online.platform"],
+      "risks": ["technology"],
+      "nextAction": "Create a test room and run a joining test with two people."
+    },
+    {
+      "key": "participant_agreement",
+      "title": "Write the participant agreement",
+      "description": "Write the participation terms, including project ownership, code of conduct and photo consent wording.",
+      "category": "compliance",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -42
+      },
+      "ownerRole": "Lead organizer",
+      "dependsOn": ["define_scope"],
+      "when": [],
+      "requiredInfo": ["ip.ownership", "media.photography"],
+      "risks": ["legal"],
+      "nextAction": "Draft the agreement and get it reviewed by the university or sponsor contact."
+    },
+    {
+      "key": "guardian_consent",
+      "title": "Set up guardian consent",
+      "description": "Prepare the guardian consent form and decide how signed forms are collected and checked before acceptance.",
+      "category": "compliance",
+      "priority": "critical",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -35
+      },
+      "ownerRole": "Participant lead",
+      "dependsOn": ["participant_agreement"],
+      "when": [
+        {
+          "key": "audience.level",
+          "op": "in",
+          "values": ["school_students", "mixed"]
+        }
+      ],
+      "requiredInfo": ["audience.min_age", "audience.guardian_consent"],
+      "risks": ["minors"],
+      "nextAction": "Draft the consent form and agree with schools who collects it."
+    },
+    {
+      "key": "open_registration",
+      "title": "Open registration",
+      "description": "Publish the registration form with team, dietary, accessibility and consent questions.",
+      "category": "registration",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -35
+      },
+      "ownerRole": "Participant lead",
+      "dependsOn": ["participant_agreement"],
+      "when": [],
+      "requiredInfo": ["format.team_size", "accessibility.ask_needs"],
+      "risks": [],
+      "nextAction": "Build the registration form and test it end to end."
+    },
+    {
+      "key": "campus_access",
+      "title": "Arrange campus access for external participants",
+      "description": "Agree visitor passes or guest lists with campus security for participants from other institutions.",
+      "category": "logistics",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -14
+      },
+      "ownerRole": "Venue lead",
+      "dependsOn": ["book_campus_venue"],
+      "when": [
+        {
+          "key": "audience.multi_institution",
+          "op": "equals",
+          "value": true
+        },
+        {
+          "key": "venue.on_campus",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": ["venue"],
+      "nextAction": "Ask campus security what they need for visitor access."
+    },
+    {
+      "key": "book_catering",
+      "title": "Book catering",
+      "description": "Request catering quotes that cover the dietary needs and confirm the order with the caterer.",
+      "category": "catering",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -21
+      },
+      "ownerRole": "Logistics lead",
+      "dependsOn": ["set_budget"],
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": ["catering.dietary"],
+      "risks": ["food"],
+      "nextAction": "Request quotes from two or three caterers in the marketplace.",
+      "providerCategory": "catering"
+    },
+    {
+      "key": "overnight_plan",
+      "title": "Plan the overnight period",
+      "description": "Arrange rest areas, overnight security and a supervision rota.",
+      "category": "safety",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -14
+      },
+      "ownerRole": "Safety lead",
+      "dependsOn": ["book_campus_venue", "source_external_venue"],
+      "when": [
+        {
+          "key": "format.overnight",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": ["format.overnight_supervision"],
+      "risks": ["safety", "minors"],
+      "nextAction": "List overnight needs and confirm security cover with the venue.",
+      "providerCategory": "security"
+    },
+    {
+      "key": "safety_plan",
+      "title": "Write the safety and first-aid plan",
+      "description": "Name the first-aid contact, emergency procedure, evacuation route and incident reporting route.",
+      "category": "safety",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -10
+      },
+      "ownerRole": "Safety lead",
+      "dependsOn": ["book_campus_venue", "source_external_venue"],
+      "when": [],
+      "requiredInfo": [],
+      "risks": ["safety"],
+      "nextAction": "Ask the venue for its emergency procedure and first-aid arrangements."
+    },
+    {
+      "key": "sponsor_outreach",
+      "title": "Reach out to sponsors",
+      "description": "Prepare a sponsor pack and contact potential sponsors.",
+      "category": "sponsorship",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -60
+      },
+      "ownerRole": "Sponsorship lead",
+      "dependsOn": ["set_budget"],
+      "when": [
+        {
+          "key": "sponsors.expected",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": ["finance"],
+      "nextAction": "Draft a one-page sponsor pack."
+    },
+    {
+      "key": "prizes_judging",
+      "title": "Arrange prizes and judging",
+      "description": "Confirm prizes, judging criteria and judges.",
+      "category": "judging",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -14
+      },
+      "ownerRole": "Judging lead",
+      "dependsOn": ["define_scope"],
+      "when": [
+        {
+          "key": "prizes.offered",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": ["prizes.kind"],
+      "risks": ["finance"],
+      "nextAction": "Write the judging criteria and invite judges."
+    },
+    {
+      "key": "photography",
+      "title": "Arrange photography",
+      "description": "Brief the photographer and make sure consent preferences are visible on the day.",
+      "category": "communications",
+      "priority": "low",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -7
+      },
+      "ownerRole": "Communications lead",
+      "dependsOn": ["open_registration"],
+      "when": [
+        {
+          "key": "media.photography",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": ["media.consent"],
+      "risks": [],
+      "nextAction": "Book a photographer or volunteer and share the consent list.",
+      "providerCategory": "photography"
+    },
+    {
+      "key": "participant_comms",
+      "title": "Send participant briefing",
+      "description": "Send accepted participants the schedule, venue details, what to bring and the code of conduct.",
+      "category": "communications",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -3
+      },
+      "ownerRole": "Participant lead",
+      "dependsOn": ["open_registration"],
+      "when": [],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Draft the briefing message (it is sent only after approval)."
+    },
+    {
+      "key": "run_of_show",
+      "title": "Finalize the run of show",
+      "description": "Write the minute-by-minute schedule with owners for each slot.",
+      "category": "staffing",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -2
+      },
+      "ownerRole": "Lead organizer",
+      "dependsOn": ["safety_plan", "participant_comms"],
+      "when": [],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Draft the schedule and share it with all volunteers."
+    },
+    {
+      "key": "closeout",
+      "title": "Close out the event",
+      "description": "Send thank-you messages, collect feedback, settle supplier invoices and write a short report.",
+      "category": "closeout",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_end",
+        "offsetDays": 7
+      },
+      "ownerRole": "Lead organizer",
+      "dependsOn": ["run_of_show"],
+      "when": [],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Draft the feedback form before the event so it can go out the day after."
+    }
+  ],
+  "riskCategories": [
+    {
+      "key": "venue",
+      "label": "Venue availability",
+      "description": "The venue isn't confirmed, is cancelled or doesn't fit the attendance.",
+      "when": []
+    },
+    {
+      "key": "minors",
+      "label": "Participants under 18",
+      "description": "Consent, supervision and safeguarding for minors.",
+      "when": [
+        {
+          "key": "audience.level",
+          "op": "in",
+          "values": ["school_students", "mixed"]
+        }
+      ]
+    },
+    {
+      "key": "safety",
+      "label": "Health and safety",
+      "description": "First aid, emergencies, overnight security and crowd safety.",
+      "when": []
+    },
+    {
+      "key": "food",
+      "label": "Food safety and dietary needs",
+      "description": "Allergies, dietary requirements and food handling.",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "technology",
+      "label": "Technology and connectivity",
+      "description": "Wi-Fi capacity, power, online platform failure.",
+      "when": []
+    },
+    {
+      "key": "legal",
+      "label": "Agreements and ownership",
+      "description": "Project ownership, participant terms and sponsor agreements.",
+      "when": []
+    },
+    {
+      "key": "finance",
+      "label": "Budget and prizes",
+      "description": "Overspending, unpaid suppliers, prize payment arrangements.",
+      "when": []
+    }
+  ],
+  "requiredForPlan": [
+    {
+      "key": "event.city",
+      "label": "The event's city (edit the event)",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "key": "audience.level",
+      "label": "Who the hackathon is for",
+      "when": []
+    },
+    {
+      "key": "format.team_size",
+      "label": "Maximum team size",
+      "when": []
+    },
+    {
+      "key": "venue.on_campus",
+      "label": "Whether the venue is on campus",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "key": "audience.guardian_consent",
+      "label": "Who collects guardian consent",
+      "when": [
+        {
+          "key": "audience.level",
+          "op": "in",
+          "values": ["school_students", "mixed"]
+        }
+      ]
+    },
+    {
+      "key": "catering.provided",
+      "label": "Whether food is provided",
+      "when": []
+    }
+  ],
+  "complianceTopics": [
+    {
+      "key": "event_permit",
+      "title": "Event permit or activity approval",
+      "description": "Public or ticketed events may need an approval from the relevant emirate authority. Check whether this event needs one.",
+      "confidence": "conditional",
+      "sourceRequirement": "official_source_required",
+      "when": [
+        {
+          "key": "venue.on_campus",
+          "op": "equals",
+          "value": false
+        }
+      ]
+    },
+    {
+      "key": "campus_event_policy",
+      "title": "University event policy",
+      "description": "Most universities have internal rules for events on campus (booking, security, catering, external guests).",
+      "confidence": "recommended",
+      "sourceRequirement": "institution_policy",
+      "when": [
+        {
+          "key": "venue.on_campus",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "minors_safeguarding",
+      "title": "Safeguarding of minors",
+      "description": "Consent, supervision ratios and safeguarding rules for participants under 18.",
+      "confidence": "conditional",
+      "sourceRequirement": "official_source_required",
+      "when": [
+        {
+          "key": "audience.level",
+          "op": "in",
+          "values": ["school_students", "mixed"]
+        }
+      ]
+    },
+    {
+      "key": "food_safety",
+      "title": "Food safety for catered events",
+      "description": "Caterers serving events usually need valid food-handling approvals. Ask caterers for theirs.",
+      "confidence": "conditional",
+      "sourceRequirement": "official_source_required",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "photo_consent",
+      "title": "Photo and video consent",
+      "description": "Decide how consent for photos is collected and respected on the day.",
+      "confidence": "recommended",
+      "sourceRequirement": "organizer_decision",
+      "when": [
+        {
+          "key": "media.photography",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "prize_rules",
+      "title": "Prize and sponsorship terms",
+      "description": "Cash prizes and sponsor-provided prizes may need written terms and payment arrangements.",
+      "confidence": "recommended",
+      "sourceRequirement": "organizer_decision",
+      "when": [
+        {
+          "key": "prizes.offered",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "providerCategories": [
+    {
+      "category": "venue",
+      "reason": "The event needs a venue off campus.",
+      "when": [
+        {
+          "key": "venue.on_campus",
+          "op": "equals",
+          "value": false
+        }
+      ]
+    },
+    {
+      "category": "catering",
+      "reason": "Food and drinks are provided.",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "category": "av",
+      "reason": "Pitches and demos need screens, sound and microphones.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "category": "security",
+      "reason": "Overnight events need security cover.",
+      "when": [
+        {
+          "key": "format.overnight",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "category": "photography",
+      "reason": "The event will be photographed.",
+      "when": [
+        {
+          "key": "media.photography",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    }
+  ]
+}

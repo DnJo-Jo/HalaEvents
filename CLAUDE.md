@@ -56,7 +56,7 @@ npm test            # all Vitest projects (unit + db)
 npm run test:unit   # unit/component tests (jsdom)
 npm run test:db     # migrations + RLS on PGlite (local, no Docker) — NOT a live Supabase
 npm run db:start    # supabase start   (needs Docker)
-npm run db:reset    # supabase db reset (needs Docker)
+npm run db:reset -- --yes   # supabase db reset (needs Docker; refuses without --yes or a non-local URL)
 npm run db:types    # generate src/lib/db/types.gen.ts (needs Docker)
 # test:e2e (Playwright) arrives in P11
 ```

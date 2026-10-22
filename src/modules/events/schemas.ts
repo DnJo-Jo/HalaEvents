@@ -19,6 +19,7 @@ export const EventStatus = z.enum([
 export type EventStatus = z.infer<typeof EventStatus>;
 
 export const EventType = z.enum(["university_hackathon"]);
+export type EventType = z.infer<typeof EventType>;
 export const VenueType = z.enum(["indoor", "outdoor", "hybrid", "online"]);
 export const EventMemberRole = z.enum(["owner", "organizer", "viewer"]);
 export type EventMemberRole = z.infer<typeof EventMemberRole>;
@@ -69,3 +70,5 @@ export function eventFormInput(timeZone: string) {
     });
 }
 export type EventFormInput = z.infer<ReturnType<typeof eventFormInput>>;
+
+export const ChangeEventStatusInput = z.object({ status: EventStatus });

@@ -11,9 +11,17 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { Alert } from "@/components/ui/alert";
+import { Select } from "@/components/ui/input";
 import { formatInZone } from "@/lib/dates";
+import { getComplianceOverview } from "@/modules/compliance/service";
+import { changeEventStatusAction } from "@/modules/events/actions";
+import { EVENT_TRANSITIONS } from "@/modules/events/rules";
+import { describeTimelineEntry } from "@/modules/events/timeline";
+import { refreshRemindersAction } from "@/modules/notifications/actions";
+import { getTaskBoard } from "@/modules/tasks/service";
 import { listRequestsForEvent } from "@/modules/bookings/service";
-import { getEventForMember } from "@/modules/events/service";
+import { getEventForMember, getTimeline } from "@/modules/events/service";
 import { removeFromShortlistAction } from "@/modules/marketplace/actions";
 import { listShortlist } from "@/modules/marketplace/service";
 import { CATEGORY_LABELS, formatMoney } from "@/modules/profiles/labels";
@@ -24,10 +32,23 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
   const { eventId } = await params;
   if (!z.uuid().safeParse(eventId).success) notFound();
   const { event: e, role, canManage } = await getEventForMember(eventId);
-  const [shortlist, requests] = await Promise.all([
+  const [shortlist, requests, board, compliance, timeline] = await Promise.all([
     listShortlist(eventId),
     canManage ? listRequestsForEvent(eventId) : [],
+    getTaskBoard(eventId),
+    getComplianceOverview(eventId),
+    getTimeline(eventId, 15),
   ]);
+  const p = board.progress;
+  const openChecks = compliance.checks.filter(
+    (c) => !["cleared", "rejected", "closed"].includes(c.status),
+  );
+  const concerns = openChecks.filter((c) => c.severity === "concern").length;
+  const actionRequired = openChecks.filter((c) => c.status === "action_required").length;
+  const upcoming = board.tasks
+    .filter((t) => board.derived.get(t.id)?.overdue || board.derived.get(t.id)?.dueSoon)
+    .slice(0, 5);
+  const nextStatuses = EVENT_TRANSITIONS[e.status];
 
   return (
     <div className="space-y-8">
@@ -46,11 +67,46 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
           </span>
         }
         actions={
-          canManage ? (
-            <ButtonLink href={`/app/requests/new?event=${e.id}`} variant="secondary">
-              New service request
+          <>
+            {canManage && (
+              <ButtonLink href={`/app/events/${e.id}/edit`} variant="ghost">
+                Edit details
+              </ButtonLink>
+            )}
+            <ButtonLink href={`/app/events/${e.id}/tasks`} variant="secondary">
+              Tasks
             </ButtonLink>
-          ) : undefined
+            <ButtonLink href={`/app/events/${e.id}/compliance`} variant="secondary">
+              Compliance
+            </ButtonLink>
+            <ButtonLink href={`/app/events/${e.id}/attendees`} variant="secondary">
+              Attendees
+            </ButtonLink>
+            {canManage && (
+              <>
+                <ButtonLink href={`/app/events/${e.id}/messages`} variant="secondary">
+                  Messages
+                </ButtonLink>
+                <ButtonLink href={`/app/events/${e.id}/bookings`} variant="secondary">
+                  Bookings
+                </ButtonLink>
+                <ButtonLink href={`/app/events/${e.id}/incidents`} variant="secondary">
+                  Crisis recovery
+                </ButtonLink>
+              </>
+            )}
+            <ButtonLink href={`/app/events/${e.id}/interview`} variant="secondary">
+              Planning interview
+            </ButtonLink>
+            <ButtonLink href={`/app/events/${e.id}/plan`} variant="secondary">
+              Plan
+            </ButtonLink>
+            {canManage && (
+              <ButtonLink href={`/app/requests/new?event=${e.id}`} variant="secondary">
+                New service request
+              </ButtonLink>
+            )}
+          </>
         }
       />
 
@@ -78,6 +134,139 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
           </dl>
         </CardBody>
       </Card>
+
+      <section aria-labelledby="progress-heading" className="space-y-3">
+        <h2 id="progress-heading" className="text-lg font-semibold">
+          Progress
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-4">
+          <Card>
+            <CardBody>
+              <p className="text-xs text-ink-muted">Tasks done</p>
+              <p className="text-2xl font-semibold tabular-nums">
+                {p.percent === null ? "—" : `${p.percent}%`}
+              </p>
+              <p className="text-xs text-ink-muted">
+                {p.done} of {p.total - p.cancelled} ({p.cancelled} cancelled)
+              </p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <p className="text-xs text-ink-muted">Overdue / blocked</p>
+              <p className="text-2xl font-semibold tabular-nums">
+                {p.overdue} / {p.blocked}
+              </p>
+              <p className="text-xs text-ink-muted">
+                Today is {board.today} ({e.timezone})
+              </p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <p className="text-xs text-ink-muted">Open compliance checks</p>
+              <p className="text-2xl font-semibold tabular-nums">{openChecks.length}</p>
+              <p className="text-xs text-ink-muted">
+                {concerns} possible concern{concerns === 1 ? "" : "s"} · {actionRequired} action
+                required
+              </p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <p className="text-xs text-ink-muted">Unchecked rule results</p>
+              <p className="text-2xl font-semibold tabular-nums">{compliance.pending}</p>
+              <p className="text-xs text-ink-muted">Run the compliance checks to add them.</p>
+            </CardBody>
+          </Card>
+        </div>
+        {p.total === 0 && (
+          <Alert tone="info" title="No tasks yet">
+            Answer the{" "}
+            <Link href={`/app/events/${e.id}/interview`} className="underline">
+              planning interview
+            </Link>
+            , generate a{" "}
+            <Link href={`/app/events/${e.id}/plan`} className="underline">
+              plan
+            </Link>{" "}
+            and accept it, or add tasks by hand.
+          </Alert>
+        )}
+        {upcoming.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Due soon or overdue</CardTitle>
+            </CardHeader>
+            <CardBody>
+              <ul className="space-y-1 text-sm">
+                {upcoming.map((t) => (
+                  <li key={t.id} className="flex items-center justify-between gap-2">
+                    <span>{t.title}</span>
+                    <Badge tone={board.derived.get(t.id)?.overdue ? "danger" : "warning"}>
+                      {board.derived.get(t.id)?.overdue ? "Overdue" : "Due"} {t.due_date}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            </CardBody>
+          </Card>
+        )}
+        {canManage && (
+          <div className="flex flex-wrap items-end gap-4">
+            {nextStatuses.length > 0 && (
+              <ActionForm
+                action={changeEventStatusAction.bind(null, e.id)}
+                className="flex flex-wrap items-end gap-2 space-y-0"
+                aria-label="Change event status"
+              >
+                <label className="text-sm">
+                  <span className="block text-xs text-ink-muted">Event status</span>
+                  <Select name="status" defaultValue={nextStatuses[0]} aria-label="New status">
+                    {nextStatuses.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+                <SubmitButton variant="secondary" size="sm">
+                  Change status
+                </SubmitButton>
+              </ActionForm>
+            )}
+            <ActionForm
+              action={refreshRemindersAction.bind(null, e.id)}
+              className="space-y-0"
+              aria-label="Check reminders"
+            >
+              <SubmitButton variant="ghost" size="sm">
+                Check deadlines and missing information
+              </SubmitButton>
+            </ActionForm>
+          </div>
+        )}
+      </section>
+
+      <section aria-labelledby="timeline-heading" className="space-y-3">
+        <h2 id="timeline-heading" className="text-lg font-semibold">
+          Timeline
+        </h2>
+        {timeline.length === 0 ? (
+          <p className="text-sm text-ink-muted">No changes recorded yet.</p>
+        ) : (
+          <ol className="space-y-2 border-l border-line pl-4 text-sm">
+            {timeline.map((t, i) => (
+              <li key={`${t.at}-${i}`}>
+                <span className="font-medium">{t.actor_name}</span> {describeTimelineEntry(t)}
+                <span className="block text-xs text-ink-muted">
+                  {formatInZone(t.at, e.timezone)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
 
       <section aria-labelledby="shortlist-heading" className="space-y-3">
         <div className="flex items-center justify-between">

@@ -45,6 +45,14 @@ describe("parseServerEnv", () => {
     }
   });
 
+  it("rejects a GEMINI_MODEL that isn't a plain model id (it becomes part of the URL path)", () => {
+    for (const model of ["../v1/files", "gemini flash", "Gemini-2.5"]) {
+      expect(() =>
+        parseServerEnv({ AI_PROVIDER: "gemini", GEMINI_API_KEY: SECRET, GEMINI_MODEL: model }),
+      ).toThrow(/GEMINI_MODEL: must be a model id/);
+    }
+  });
+
   it("accepts a fully configured real setup", () => {
     expect(() =>
       parseServerEnv({ AI_PROVIDER: "gemini", GEMINI_API_KEY: SECRET, GEMINI_MODEL: "model-x" }),

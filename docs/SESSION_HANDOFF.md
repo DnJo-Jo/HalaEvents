@@ -1,6 +1,249 @@
 # Session Handoff
 
-## Last session: 2026-10-21 — Phase 4 (provider marketplace)
+## Last session: 2026-10-22 — Integrations, security & reliability (user's "Phase 9" brief; `PROGRESS.md` Phase 10)
+- Added provider interfaces + mocks (weather, places, official sources, calendar interface), an Open-Meteo adapter, security headers/CSP, body limit, AI burst limiter, startup env check, guarded `npm run db:reset -- --yes`, security regression tests. Details and limitations: `event.md` §25.
+- `npm run verify` ✅ (703 tests, build). Nothing committed. No live Gemini/Resend/Open-Meteo/Supabase call was made.
+- Next: P11 seed/e2e/demo; optionally surface weather on the event page (use `FORECAST_DISCLAIMER`); live Supabase + Gemini checks listed in earlier sessions below still pending.
+
+---
+
+## Last session: 2026-10-22 — Crisis recovery (P8) and post-event reviews (user's "Phase 8" brief)
+
+### Starting state (verified, not assumed)
+- Still uncommitted on `01f6d60`; no Docker access, no `.env.local`. The previous handoff said P8 was not started, but an interrupted session had left
+  `supabase/migrations/20261022000008_recovery.sql` (~980 lines) and `src/modules/recovery/schemas.ts` with no tests, TS layer, UI or docs. `npm test` passed (540) because the DB harness applies every migration;
+  `format:check` failed on 2 files (fixed with prettier, whitespace only).
+
+### What was done
+- **Recovery (P8, `event.md` §23):** reviewed migration 0008 by writing `tests/db/recovery.test.ts` first (no logic fix needed; header comment corrected), then `src/modules/recovery/{rules,prompts,repo,service,actions}.ts`,
+  mock fixture + `recovery` pipeline type, comms changes (`ApprovalAction` has the two new actions, `CommunicationRow.recovery_plan_id`, `sendApproved` forces the mock transport for recovery drafts),
+  pages `/app/events/[id]/incidents` and `/incidents/[incidentId]`, event-page button, messages badge, error messages for the new SQL rules.
+- **Reviews (P10, `event.md` §24):** new migration `20261022000009_reviews.sql`, `src/modules/reviews/*`, `src/components/reviews/rating.tsx`, pages `/app/reviews` and `/app/admin/reviews`, a Reviews card on `/app/marketplace/[providerId]`, two nav items.
+- Docs: `event.md` header + §23 + §24, `docs/IMPLEMENTATION_PLAN.md` (header, P8, P10, module table, totals), `PROGRESS.md` Phase 9.
+
+### Commands run and results
+See `PROGRESS.md` Phase 9. Final `npm run verify`: ✅ exit 0 — lint, typecheck, format, **44 files / 685 tests (405 unit + 280 db)**, build. New tests: `tests/db/recovery.test.ts` 32, `tests/db/reviews.test.ts` 36,
+`tests/unit/recovery/{rules,service}` 30 + 16, `tests/unit/reviews/{rules,service}` 16 + 13. Mutation checks failed the tests as intended and the files were restored byte-for-byte (backups compared with `cmp`).
+Signed-out smoke on `next start`: new routes 307 → sign-in.
+
+### Decisions made
+1. Recovery is **simulation only**: `incidents.is_simulated` CHECK-true; no code path cancels/rebooks/confirms anything. Real cancellation stays the approval-gated booking action (§22).
+2. Service bookings are never cancelled by the workflow; they are flagged `reconfirm` (code decides, not the model) and get templated inquiries; compliance checks are flagged `reassess`.
+3. A recovery plan can only contain `reschedule_task`, `add_task`, `flag_review`. Approvals bind the selected changes **and** the current state of what they touch; any drift supersedes.
+4. A failed/invalid model proposal stores nothing and no fallback proposal is invented. Text checks (availability/consent/permit/price claims) are best-effort regexes; structural guarantees carry the safety.
+5. Idempotency key is derived server-side (`sim:<booking>:<n earlier incidents>`), plus one active incident per booking in SQL.
+6. Reviews: one per **booking and direction** (the team shares the slot), not editable; "verified" is derived from the booking and never an input; provider→organizer reviews are behind the platform setting `provider_reviews_of_organizers` (default **off**).
+7. Public rating functions return **no rows** (not zero) when the caller may not see the provider; an empty history shows "No reviews yet".
+
+### Not verified
+- **No real Gemini request** was made. The nested `RecoveryProposal` JSON schema has never been sent to Google; `toGeminiSchema` may need adjusting (HTTP 400) when the first live call happens.
+- Live Supabase/PostgREST (RPC argument names, `jsonb` payloads, embedded selects), concurrency (PGlite is single-connection), and a browser walkthrough of the new pages (incident page, reviews, admin moderation, marketplace card).
+- No email was sent, no provider contacted, no real booking cancelled. Nothing committed.
+
+### Exact next action
+1. **User (still pending):** Docker group or a hosted Supabase project → `npm run db:reset` → walk through: confirm a venue booking (provider account) → simulate cancellation on `/app/events/<id>/incidents` → "Propose recovery" → select a subset → request approval →
+   approve → apply (check only the subset changed and the caterer booking is still confirmed) → request/approve/record an inquiry → approve the attendee draft on `/messages` (mock) → complete a booking after its end date → write a review on `/app/reviews` →
+   respond/dispute as the provider → hide/restore as a platform admin (§14.7) → check the Reviews card on the provider page.
+2. Put `GEMINI_API_KEY` and `GEMINI_MODEL` in `.env.local` (never in chat), set `AI_PROVIDER=gemini`, run `npm run test:ai-live`, then try "Propose recovery" once; if the nested schema is rejected, simplify `RecoveryProposal` or `toGeminiSchema`.
+3. To try provider→organizer reviews: sign in as a platform admin and enable the policy on `/app/admin/reviews`.
+4. Next phase: **P11 seed, e2e, demo hardening** (a seed that includes a confirmed venue booking and a completed booking so the recovery and review demos start immediately), then the follow-ups: reviews edit/notifications/ranking, dependency-order check when moving tasks, delivery webhooks.
+
+---
+
+## Earlier session: 2026-10-22 — Bookings, attendees & communications (user's "Phase 7" brief)
+### Starting state (verified)
+- Phase 6 (workspace + compliance) done the same day; `npm run verify` green at 483 tests. Still uncommitted on `01f6d60`. No Docker, no `.env.local`.
+
+### What was done
+- **Attendees (P6):** migration `20261022000005_attendees.sql`, `src/modules/attendees/`, `/register/[slug]` (public), `/app/events/[id]/attendees`, `/app/attendees`.
+- **Approvals + communications (P7):** migration `20261022000006_communications.sql`, `src/modules/comms/`, `src/lib/integrations/email/` (mock + Resend REST),
+  AI `draft_message` pipeline (mock fixture + Gemini), `/app/events/[id]/messages`, `/app/messages`.
+- **Bookings (P10):** migration `20261022000007_bookings.sql`, `src/modules/bookings/booking-*.ts`, `/app/events/[id]/bookings`, `/app/provider/bookings`,
+  `/app/admin/bookings`, "Propose booking" on request pages; nav items "Bookings" (providers) and "Booking disputes" (admins).
+- `src/lib/errors.ts` maps every new SQL rule; `src/lib/rate-limit.ts` (in-memory) for the public form.
+- Docs: `event.md` header, §3, §4, §5.2, new §20–22; `docs/IMPLEMENTATION_PLAN.md` header, P6, P7, P10, test table, totals, decision 4; `PROGRESS.md` Phase 8.
+
+### Commands run and results
+See `PROGRESS.md` Phase 8. Final `npm run verify`: ✅ 38 files / 540 tests (328 unit + 212 db), build OK. Signed-out smoke: new `/app` routes 307,
+`/register/campus-hack` 200 (public). Mutation checks were cumulative (scratchpad backups failed); files were restored by hand and re-tested (31 ✅).
+
+### Decisions made
+1. Booking states: proposed → awaiting organizer approval → awaiting provider → confirmed / declined; cancelled, completed, disputed. Quotes keep their own states.
+2. Approvals carry a payload **built in SQL** from the target (incl. recipients) + sha256; any difference supersedes. Self-approval allowed (decision 4).
+3. Booking approvals execute in one DB transaction (`execute_booking_approval`); message approvals are two-phase (claim → transport → finish).
+4. Delivery statuses: `simulated` (mock), `accepted` (provider API), `failed`; `delivered`/`bounced` reserved for webhooks (not built).
+5. Venue overlap is the only availability rule (venues can't be double-booked); service providers can serve several events.
+6. Public registration answers with one neutral message; no applications table (review is a column); waitlist promotion is manual.
+7. Two anon functions (`register_attendee`, `public_event_by_slug`) re-granted after each migration's trailing revoke; schema test pins them.
+
+### Not verified
+- Live Supabase/PostgREST, real concurrency (PGlite serializes), a browser walkthrough of any new page.
+- **Resend**: never called; adapter tested with a fake `fetch`. No real email has been sent by HalaEvents.
+- No real provider account has confirmed a booking. Nothing committed.
+
+### Exact next action
+1. **User (still pending):** Supabase (Docker group or hosted project) → `npm run db:reset` → walk through: open registration → register from a
+   private window (capacity 2: two accepted, third waitlisted) → draft a reminder with AI → request approval → approve → send (simulated) → check
+   delivery rows; propose a booking from a quote → approve → send → confirm as the provider account → try a cancellation approval.
+2. Optional real email: a Resend account with a verified domain, `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, `EMAIL_FROM` in `.env.local`; send one
+   message to your own address and check that the UI says "accepted — delivery not confirmed".
+3. Next phase: **P8 incidents & re-plan** (uses approvals for applying changes and comms for participant updates), then P11 seed/e2e/demo.
+4. Follow-ups: delivery webhooks (Resend events → `delivered`/`bounced`), attendee self-service links, reviews (P10), scheduled reminders.
+
+---
+
+## Earlier session: 2026-10-22 — Event workspace & compliance workflow (user's "Phase 6" brief)
+
+### Starting state (verified)
+- P3 finished and documented earlier the same day; `npm run verify` green (420 tests). Still uncommitted on top of `01f6d60`. No Docker access, no `.env.local`.
+
+### What was done
+- **P2 leftovers:** `/app/events/[id]/edit`, lifecycle status form on the event page (`updateEvent`, `changeEventStatus`).
+- **P4 tasks (`src/modules/tasks/`, migration `20261022000003_workspace.sql`):** tasks, dependencies (trigger: same event, no self, no cycle, event lock),
+  deterministic transitions, blocked/overdue/due-soon derived, owners = event managers, `accept_ai_plan`, `/app/events/[id]/tasks`, `/app/tasks`.
+- **Workspace:** progress cards, due-soon list, timeline (`event_timeline()` over `audit_log`, whitelisted fields), reminders button.
+- **Notifications (`src/modules/notifications/`, `/app/notifications`, nav item):** in-app only, dedupe keys, `delivered`/`read`.
+- **P5 compliance (`src/modules/compliance/`, migration `20261022000004_compliance.sql`):** curated `knowledge_sources` (6, none verified), `compliance_checks`
+  with ten states, references, evidence, simulated-only `official_submissions`, reviewer-only decisions, deterministic detection, `/app/events/[id]/compliance`
+  (+ check page), `/app/compliance` (registry + admin verification). Audit triggers and notification triggers.
+- `src/lib/errors.ts` maps every new SQL rule to a readable message. `vitest.config.mts`: db project `maxWorkers: 3`, `groupOrder: 1` (OOM fix).
+- Docs: `event.md` header, §3, §4, new §18–19; `docs/IMPLEMENTATION_PLAN.md` header, P2/P4/P5, test table, totals; `PROGRESS.md` Phase 7.
+
+### Commands run and results
+See `PROGRESS.md` Phase 7. Final `npm run verify`: ✅ 32 files / 483 tests (303 unit + 180 db), build OK. Mutation checks on the cycle/blocked
+and reviewer/evidence rules failed the tests as intended. Signed-out smoke: all new routes 307 → sign-in.
+
+### Decisions made
+1. Compliance uses **checks with review states** instead of `event_requirements.confidence` (`event.md` §19 supersedes the §3/§4 requirement design).
+2. Detection is **deterministic only**; AI-assisted concern analysis was not built (the brief said "rules and/or AI").
+3. "Cleared" needs the assigned reviewer (or a platform admin), a reason and **non-simulated** evidence. "Source-supported" needs a source a platform admin verified.
+4. Official submissions can only be simulated (CHECK). Real applications are tracked as the organizer's own `submission_reference` evidence.
+5. Tasks add `todo → done` and `cancelled → todo` to the §4 table. Deadlines are `date`s in the event timezone.
+6. Notifications are in-app only and refreshed on organizer actions; there is no scheduler.
+7. Source data lives in the migration (reference data needed by the app), with retrieval facts recorded honestly (403 / 404 / search snippet).
+
+### Not verified
+- No live Supabase/PostgREST, no browser walkthrough of any new page, no multi-connection concurrency test (PGlite is single-connection).
+- The **current content of the DET/DDA pages**: DET blocks automated fetches; summaries are search snippets. A person must open each page and verify it in the app.
+- Nothing committed.
+
+### Exact next action
+1. **User:** open each source on `/app/compliance` in a browser and (as platform admin, §14.7) record what was checked, or correct the summaries.
+   Confirm with DET whether a free university hackathon with registration needs an event/ticketed-event permit before any demo claims it.
+2. **User (still pending):** Docker group or a hosted Supabase project → `npm run db:reset` → walk through: create event → interview → plan → accept →
+   tasks (dependency, blocked, done) → run compliance checks → assign reviewer → record evidence → clear; simulate a submission; check notifications.
+   Also `GEMINI_API_KEY`/`GEMINI_MODEL` in `.env.local` → `npm run test:ai-live`.
+3. **Next phase: P6 attendees & applications** (`register_attendee`, capacity-safe `accept_attendee`), then P7 approvals (two-phase execution).
+4. Optional follow-ups: scheduled deadline reminders (Supabase cron), evidence uploads (Storage), `/api/**` route handlers.
+
+---
+
+## Earlier session: 2026-10-22 — P3 AI adapter & plan generation (finishing an interrupted session)
+
+### Starting state (verified, not assumed)
+- An earlier session (after the P2 interview session below) built P3 but was interrupted before updating any docs. Uncommitted, on top of `01f6d60`:
+  `src/lib/ai/*`, `src/modules/ai/{schemas,rules,prompts,provider,repo,service,actions}.ts`, `playbooks/university-hackathon.json`
+  (the `src/playbooks/university-hackathon.ts` file was replaced by it), `/app/events/[eventId]/plan`, follow-ups on the interview page,
+  migration `20261022000002_ai.sql`, tests `tests/unit/ai/*`, `tests/db/ai.test.ts`, `tests/live/gemini.live.test.ts`, `test:ai-live` script.
+- `typecheck` and `lint` were clean, and `npm test` passed 26 files / 420 tests, so nothing was rebuilt.
+- The user confirmed: **no SDK, call the Gemini REST API directly.** That matches the existing `gemini.ts` (plain `fetch`).
+
+### What was done
+- ESLint guard for the P3 acceptance item: `@google/genai`, `@google/generative-ai`, `@google-cloud/vertexai` imports are errors everywhere,
+  and the Gemini host string is an error in `src/**` except `src/lib/ai/gemini.ts` (`eslint.config.mjs`). A probe file was used to confirm it, then deleted.
+- Docs: `event.md` §17 (new) + header, §2.3 tree, §6.1/§6.4 notes, §16.1/§16.3; `docs/IMPLEMENTATION_PLAN.md` P3 status/acceptance, test table, totals,
+  open decision 3; `PROGRESS.md` Phase 6.
+
+### Commands run and results
+| Command | Result |
+|---|---|
+| `npm run typecheck` / `npm run lint` (as found) | ✅ |
+| `npm test` (as found) | ✅ 26 files, 420 tests |
+| `npm run verify` | ✅ lint, typecheck, format, 420 tests, build (`◐ /app/events/[eventId]/plan`) |
+| `npm run test:unit` / `test:db` | ✅ 266 / ✅ 154 |
+| `npm run test:ai-live` | ⏭ skipped: no `GEMINI_API_KEY`/`GEMINI_MODEL`, no `.env.local` |
+| ESLint probe + `npx eslint .` | ✅ probe flagged 3 errors; repo clean |
+| `npm run verify` (end, after the ESLint change and docs) | ✅ exit 0: lint, typecheck, format, 420 tests, build |
+
+### Decisions made
+1. Gemini via REST only (user). Quotas are not assumed: 429 is never retried in-request; the app also caps 20 AI runs per user per hour.
+2. Playbooks are JSON data in root `playbooks/`, loaded by `src/playbooks/index.ts` (supersedes decision 1 of the P2 session).
+3. AI output is proposals only (`ai_plans`, `ai_suggestions`); `accepted` is reserved for P4, which turns proposals into tasks.
+4. Known limitation recorded in `event.md` §17.6: organizers could store hand-written "AI" proposals for their own events via the RPCs.
+
+### Not verified
+- **No real Gemini request** has ever been made, so `responseJsonSchema` acceptance of the reduced schema and real model quality are unknown.
+- No live Supabase / PostgREST, no browser walkthrough of `/plan` or the follow-ups. Nothing committed.
+
+### Exact next action
+1. **User:** put `GEMINI_API_KEY` and `GEMINI_MODEL` (e.g. a current Flash model id) in `.env.local` (never in chat), then run `npm run test:ai-live`.
+   If Google rejects the schema (HTTP 400), adjust `toGeminiSchema` in `src/lib/ai/gemini.ts`.
+2. **Finish P2 leftovers:** event edit + status transitions on `/app/events/[eventId]` (see the P2 session's "Exact next action" below; still not started).
+3. **P4 — Tasks & dependencies:** `tasks`/`task_dependencies` migration and an `accept_ai_plan` RPC that turns `ai_suggestions(kind=task, status=proposed)`
+   into tasks in one transaction (temp ids → ids, cycle check in SQL, suggestion → `accepted`, audit).
+4. Still pending on the user: Docker access or a hosted Supabase project, then `npm run db:reset` and a browser walkthrough.
+
+---
+
+## Earlier session: 2026-10-22 — P2 adaptive interview (deterministic playbook round)
+
+### Starting state (verified, not assumed)
+- Repo root `HalaEvents/` (its own `.git`, branch `master`, one commit `01f6d60 "Initial commit p5"`), clean tree. The parent
+  `HALA_EVENTS/.git` has no commits and is unused (open decision 5 is effectively resolved; the user may delete it).
+- `npm run verify` passed before any change: 18 files, 287 tests, build OK. Docker still inaccessible, no `.env.local`.
+
+### Why this task
+The previous handoff suggested P7 next, but the plan's dependencies are P7 ← P6 ← P2, and P2's interview wasn't built. The critical path
+(`P2 → P3 → P4 → P6 → P7`) makes the interview the first unfinished item. Live Supabase is still blocked on the user (Docker group or hosted project).
+
+### What was done
+- `PlaybookSchema` (`src/modules/ai/playbook.ts`) + playbook `src/playbooks/university-hackathon.ts` (v1, 19 questions) + `src/playbooks/index.ts`.
+- Pure interview logic `src/modules/events/interview-rules.ts`; `listInterviewAnswers`/`saveInterviewAnswers` (repo), `getInterview`/`saveInterview`
+  (service), `saveInterviewAction` (actions) in `src/modules/events/`.
+- Migration `supabase/migrations/20261022000001_interview.sql`: `interview_answers`, RPC `save_interview_answers`, RLS (members read, RPC-only writes).
+- Page `src/app/app/events/[eventId]/interview/page.tsx`, component `src/components/events/interview-question.tsx`, "Planning interview" button on the event page.
+- Tests: `tests/unit/events/interview.test.ts` (27), `tests/unit/events/interview-actions.test.tsx` (9), `tests/db/interview.test.ts` (13).
+- Docs: `event.md` §16 (+ header, §2.3, §3, §12), `docs/IMPLEMENTATION_PLAN.md` P2, open decision 5, test totals; `PROGRESS.md` Phase 5.
+
+### Commands run and results
+| Command | Result |
+|---|---|
+| `npm run verify` (start) | ✅ 287 tests |
+| `npx vitest run --project unit tests/unit/events/` | ✅ 36 (after fixing 1 real bug + 1 assertion wording) |
+| `npx vitest run --project db tests/db/interview.test.ts` | ✅ 13 (after fixing 1 test mistake); mutation check fails 1 as intended, then restored |
+| `npm run verify` (end) | ✅ lint, typecheck, format, 21 files / 336 tests (198 unit + 138 db), build |
+| `next start` smoke, no Supabase env | ✅ interview route → 307 `/sign-in?next=…` |
+
+### Decisions made
+1. Playbooks live in `src/playbooks/` (not root `playbooks/`), so they're covered by the `@/` alias with no config change.
+2. Conditions may reference only event facts or earlier questions, which rules out cycles by construction. Rounds are ≤ 5 new questions.
+3. Answers are editable while the event is draft/planning/ready, read-only after that (TS + SQL). Skipped optional questions are stored as JSON `null`.
+4. Answers whose question stops applying are deleted in the same RPC call. `custom.*` keys are reserved for P3 AI follow-ups.
+5. Interview answers are not audit-logged (not a consequential action); `answered_by`/`updated_at` record the last change.
+
+### Not verified
+- No live Supabase: the RPC over PostgREST (named args, `jsonb` payload), the page against real data, and a browser walkthrough are untested.
+- Concurrent saves by two organizers are not tested (PGlite is single-connection). Worst case is a no-longer-applicable answer, hidden on read.
+- Nothing committed this session (commit only when asked).
+
+### Exact next action
+1. **Finish P2: edit event details + status transitions** on `/app/events/[eventId]`. Add `updateEventInput(timeZone)` to
+   `src/modules/events/schemas.ts` (partial of `eventFormInput` + optional `status`), `updateEvent`/`changeEventStatus` in
+   `events/{repo,service,actions}.ts` (service checks `canTransition` → `AppError("invalid_transition")`; the DB trigger in
+   migration 0003 already enforces it), and offer only the allowed next statuses from `EVENT_TRANSITIONS`. Tests: an action-authorization
+   test (viewer refused, invalid transition → `invalid_transition` message), plus a DB test that the organizer update path works (0003 grants `status`).
+   Changing timezone or dates must re-evaluate `event.duration_hours`; the interview already recomputes on read.
+2. Then **P3 — AI adapter & plan generation** (mock provider first, `AI_PROVIDER=mock`), which reads `interview_answers` via `interviewState().answered`.
+3. Still pending on the user: Docker access (`sudo usermod -aG docker $USER`, re-login) or a hosted Supabase project. Then run `npm run db:reset` and
+   walk through the interview and marketplace flows in a browser (`docs/SESSION_HANDOFF.md` earlier sections list the marketplace walk-through).
+
+### Configuration still required
+- `.env.local` with `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (names in `.env.example`; never paste values in chat).
+- Hosted projects: confirmation template + redirect URLs (`event.md` §14.1); first admin via SQL (§14.7).
+
+---
+
+## Earlier session: 2026-10-21 — Phase 4 (provider marketplace)
 
 ### What was done
 - Migration `20261021000004_marketplace.sql` + demo seed; modules `profiles/providers-*`, `marketplace/*`, `bookings/*`, minimal `events/*` (`event.md` §15).

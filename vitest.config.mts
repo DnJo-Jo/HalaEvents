@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { loadEnv } from "vite";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -29,8 +30,24 @@ export default defineConfig({
           name: "db",
           environment: "node",
           include: ["tests/db/**/*.test.ts"],
+          // Each file runs its own in-process Postgres (PGlite, a few hundred MB). Unbounded
+          // parallelism ran a 7.5 GB dev machine out of memory (worker SIGKILL) on 2026-10-22.
+          maxWorkers: 3,
+          sequence: { groupOrder: 1 },
           testTimeout: 30_000,
           hookTimeout: 60_000,
+        },
+      },
+      {
+        // Real Gemini calls (uses quota). Never part of `npm test`; run with `npm run test:ai-live`.
+        // Reads GEMINI_API_KEY / GEMINI_MODEL from the shell or .env.local; skips when they're unset.
+        extends: true,
+        test: {
+          name: "live",
+          environment: "node",
+          include: ["tests/live/**/*.test.ts"],
+          testTimeout: 120_000,
+          env: loadEnv("", process.cwd(), "GEMINI_"),
         },
       },
     ],

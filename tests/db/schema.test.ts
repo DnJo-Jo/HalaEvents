@@ -50,12 +50,15 @@ describe("schema hardening", () => {
     expect(rows).toEqual([]);
   });
 
-  it("anon can execute no public function", async () => {
+  it("anon can execute only the public registration functions (event.md §5.2)", async () => {
     const rows = await db.sql<{ proname: string }>(
       `select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
        where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute')`,
     );
-    expect(rows.map((r) => r.proname)).toEqual([]);
+    expect(rows.map((r) => r.proname).sort()).toEqual([
+      "public_event_by_slug",
+      "register_attendee",
+    ]);
   });
 
   it("every SECURITY DEFINER function pins search_path", async () => {

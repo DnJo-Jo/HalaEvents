@@ -6,6 +6,16 @@
 > RLS and audit implemented 2026-10-21 (§14) and tested on a **local PGlite database, not a live Supabase project**.
 > Provider marketplace (listings, directory, shortlists, service requests, questions, quotes) implemented 2026-10-21 (§15),
 > tested the same way. No booking exists yet: a quote is never a booking.
+> Adaptive interview, deterministic playbook round (P2), implemented 2026-10-22 (§16), tested the same way.
+> AI adapter (Gemini over REST, no SDK; deterministic mock), plan proposals, follow-up questions and task revision (P3)
+> implemented 2026-10-22 (§17), tested with fakes and PGlite; **no real Gemini call has been made yet**.
+> Event workspace (edit/status, tasks + dependencies, plan acceptance, progress, timeline, in-app notifications, §18) and the
+> compliance workflow (curated source registry, review states, evidence, simulated official submissions, §19) implemented
+> 2026-10-22, tested the same way (PGlite + unit/render tests, no live Supabase).
+> Attendees (§20), approval-gated communications with a mock/Resend email transport (§21) and bookings (§22) implemented
+> 2026-10-22, tested the same way. **No real email has been sent and no real provider has confirmed a booking.**
+> Crisis recovery for a **simulated** venue cancellation (P8, §23) and post-event reviews (P10, §24) implemented 2026-10-22, tested the same
+> way (PGlite + unit tests with a scripted AI provider). **No real Gemini request has been made, so recovery proposals from a real model are untested.**
 > Source: `EventPilot_AI_Project_Report.docx` (14 Oct 2026), renamed to HalaEvents, extended with the
 > Phase 1 module list (providers, marketplace, quotes, bookings, reviews) which the report did not cover.
 
@@ -90,7 +100,7 @@ src/
     env.client.ts              # NEXT_PUBLIC_* only
     db/                        # supabase server/browser/admin clients, generated types
     auth/                      # getSession, requireUser, requireEventRole, requireProviderRole, requireAdmin
-    ai/                        # AiProvider interface, gemini.ts, mock.ts, index.ts (factory)
+    ai/                        # types.ts (AiProvider), client.ts (generate), gemini.ts (REST), mock.ts, hash.ts, log.ts
     integrations/              # email/, weather/, places/ — each: interface + mock + real
     audit/                     # writeAudit helper (for non-trigger audit entries)
     errors.ts, http.ts         # AppError, toResponse()
@@ -110,7 +120,9 @@ supabase/
   migrations/                  # numbered SQL migrations (schema, RLS, functions, triggers)
   seed.sql                     # demo data (one hackathon, providers, sources)
 playbooks/
-  university-hackathon.ts      # versioned curated playbook (questions, tasks, risks)
+  university-hackathon.json    # versioned curated playbook data (questions, tasks, risks, topics)
+src/playbooks/
+  index.ts                     # playbookFor(eventType); parses every JSON playbook at import
 tests/
   unit/ db/ e2e/
 ```
@@ -155,7 +167,7 @@ tests/
 
 ## 3. Data model
 > Implemented so far: `profiles`, `user_roles`, `platform_admins`, `audit_log`, `providers`, `provider_private`,
-> `provider_members`, `events`, `event_members`. Their exact columns and rules are in §14 and `supabase/migrations/`;
+> `provider_members`, `events`, `event_members`, marketplace tables (§15), `interview_answers` (§16), AI tables (§17), `tasks`, `task_dependencies`, `notifications` (§18), `knowledge_sources`, `compliance_*`, `official_submissions` (§19), `attendees` (§20), `communications`, `communication_deliveries`, `approvals` (§21), `bookings` (§22). There is no `applications` table: application review is a column on `attendees`. Their exact columns and rules are in §14–16 and `supabase/migrations/`;
 > where §14 differs from the table below, §14 wins.
 
 All tables: `id uuid pk default gen_random_uuid()`, `created_at timestamptz default now()`,
@@ -204,11 +216,17 @@ plpgsql functions/triggers.
 `ready → planning` (re-plan). Registration only when `registration_open` and status ∈ {planning, ready}.
 
 **Task** `todo ⇄ in_progress → done`; `todo|in_progress → cancelled`; `done → in_progress` (reopen).
+*Implemented (§18) with two additions:* `todo → done` (small tasks) and `cancelled → todo` (restore).
 `blocked` is **derived**, not stored: a task is blocked if any dependency is not `done`/`cancelled`.
 Cannot move to `done` while blocked. Overdue = `due_at < now()` and status ∉ {done, cancelled}.
 
-**Event requirement** confidence ∈ {verified_source, conditional, recommended} (set by rules/human, never by AI to `verified_source`).
+**Compliance check (implemented instead of event requirements, §19)** — see §19.2 for the ten states and their rules.
+
+**Event requirement (original design, superseded by §19)** confidence ∈ {verified_source, conditional, recommended} (set by rules/human, never by AI to `verified_source`).
 status: `open → in_progress → satisfied | not_applicable`; `satisfied|not_applicable → open`.
+
+*Implemented differently (2026-10-22):* attendees (§20.2), communication delivery and approvals (§21.2–21.3) and bookings (§22.2)
+follow the state models in those sections; the blocks below are the original design.
 
 **Attendee participation ✱**
 `identified → invited → registered`; `(public form) → registered`;
@@ -267,6 +285,8 @@ is listed below. Admin client is never imported from `src/app/**` client compone
 test users). That is all. Public registration does **not** use it: `register_attendee()` is a `security definer`
 function granted to `anon`, which validates the slug and registration window itself. Approval execution runs with the
 organizer's JWT. Adding any other use requires updating this list.
+*Implemented (§20):* anon may execute exactly `register_attendee` and `public_event_by_slug` (pinned by `tests/db/schema.test.ts`).
+Because every migration ends with `revoke … from public, anon`, each later migration re-grants these two after its revoke.
 
 ### 5.3 Row-level security (enabled on every table)
 - Helper SQL functions (`security definer`, `stable`): `is_event_member(event_id, roles[])`, `is_provider_member(provider_id)`, `is_platform_admin()`.
@@ -314,6 +334,8 @@ explicit entries for AI runs and approvals with the approved payload.
 ## 6. AI orchestration
 
 ### 6.1 Provider adapter (`src/lib/ai/types.ts`)
+> Implemented differently (2026-10-22, §17.1): providers return raw text via `generate(ProviderRequest)`; the shared
+> `generate()` in `src/lib/ai/client.ts` owns validation, repair and retries. The sketch below is the original design.
 ```ts
 export interface AiProvider {
   readonly name: "gemini" | "mock" | (string & {});
@@ -358,7 +380,7 @@ post-rules → store `ai_runs` + `ai_suggestions(status = proposed)`. The AI has
 | Incident impact on tasks with explicit links | Re-plan proposals, match explanations |
 
 ### 6.4 Playbooks
-TypeScript data files in `playbooks/` validated by a Zod `PlaybookSchema` at build/test time: questions (with
+JSON data files in `playbooks/` (implemented as JSON in P3, §17.2) validated by a Zod `PlaybookSchema` at build/test time: questions (with
 conditions on prior answers), base tasks, risk categories, default requirement candidates, close-out steps.
 The interview's first round is playbook-driven (deterministic); AI adds follow-ups.
 
@@ -491,7 +513,7 @@ What exists in addition to the Phase 1 docs (created by a `create-next-app`-styl
 | `AGENTS.md` (Next.js-generated agent rules) | Kept; bundled docs now present and were read. |
 | No Prettier config, no `vitest.config.ts`, no `postcss.config.*`, no `src/app/globals.css` | **Resolved:** `.prettierrc.json`, `.prettierignore` (Markdown excluded, hand-formatted tables), `vitest.config.mts`, `vitest.setup.ts`, `globals.css`. No PostCSS config needed. |
 | `npm audit`: 5 high (`braces` via `eslint-config-next` → `@next/eslint-plugin-next` → `fast-glob`) | Dev-only lint tooling, not shipped. The suggested `audit fix --force` downgrades to `eslint-config-next@14` (breaking), so it was not applied. Recheck when Next publishes a fix. |
-| Git repo root is `HALA_EVENTS/` (parent), not `HalaEvents/`; no commits | Paths in docs are relative to `HalaEvents/`. Decide before first commit whether to move `.git` into `HalaEvents/` or keep the parent as root. |
+| Git repo root is `HALA_EVENTS/` (parent), not `HalaEvents/`; no commits | **Resolved (2026-10-22):** the repo is `HalaEvents/.git` with commits; the parent `.git` is empty and unused. Doc paths stay relative to `HalaEvents/`. |
 
 ## 13. Design system (built 2026-10-21)
 
@@ -700,3 +722,498 @@ a focused error summary (`ActionForm`).
 - **Not verified:** none of these pages have run against a real Supabase/PostgREST. Embedded selects (e.g. `providers (name, …)`) and RPC
   argument mapping are untested against the real API, and no browser test has been run. Concurrency (two organizers acting at once) is protected by
   `select … for update` in the RPCs but not tested (PGlite is single-connection).
+
+## 16. Adaptive interview — deterministic round (implemented 2026-10-22)
+
+### 16.1 Pieces
+| Piece | File | Notes |
+|---|---|---|
+| `PlaybookSchema` | `src/modules/ai/playbook.ts` | Questions: `single_choice`, `multi_choice`, `boolean`, `number` (int range, unit), `text` (max length). Each has `key`, `text`, `why`, `required`, `when` (all must hold). |
+| Playbook | `playbooks/university-hackathon.json` (19 questions; v2 since P3 added tasks/risks/topics) | Parsed by `src/playbooks/index.ts` at import, so an invalid playbook fails tests and the build. First written as `src/playbooks/university-hackathon.ts`; moved to JSON data in root `playbooks/` in P3 (§17.2). |
+| Rules (pure) | `src/modules/events/interview-rules.ts` | `eventContext`, `conditionHolds`, `interviewState`, `parseAnswer`, `parseSubmission`, `formatAnswer`, `INTERVIEW_EDITABLE_STATUSES`. |
+| Storage | `interview_answers` (migration `20261022000001_interview.sql`) | One row per (event, question key); `answer jsonb` (JSON `null` = skipped optional question); `source`, `playbook_id`, `playbook_version`, `answered_by`. |
+| UI | `/app/events/[eventId]/interview` | Managers: "Next questions" (new, ≤ 5) + "Your answers" (editable) in one form. Viewers and locked events: read-only list. |
+
+### 16.2 Rules
+- **Conditions** reference event facts (`event.venue_type`, `event.capacity`, `event.duration_hours`) or **earlier** questions only
+  (schema-enforced), using `equals`, `in`, `not_in`, `includes` (multi-choice), `gte`. An unanswered key never satisfies a condition;
+  a skipped answer or unset venue type is `null` and does (e.g. `not_in ["online"]`).
+- **Rounds:** the playbook is walked in order; a question applies only if its conditions hold given event facts and *applying* earlier
+  answers. The next round is the first ≤ 5 applicable unanswered questions. Changing an answer hides its whole dependent chain.
+- **Saving:** the form lists the keys it showed (`round`). The server validates every applicable listed answer with a Zod schema built
+  from the question (allowed options, integer range, length, required). It ignores values for keys that weren't shown or don't apply, and
+  refuses unknown keys. Answers whose question stopped applying are deleted in the same RPC call. `custom.*` keys are reserved for AI
+  follow-ups (P3) and are never removed by the playbook logic.
+- **Authorization:** the service checks owner/organizer and an editable event status (draft, planning, ready). `save_interview_answers()`
+  (SECURITY DEFINER, `search_path = ''`) re-checks membership, active account and status under a row lock on the event. Every event member,
+  viewers included, can read answers; there is no direct insert/update/delete grant. Answers are not audit-logged (not a consequential action;
+  `answered_by`/`updated_at` record the last change).
+- **Honesty:** the "why" texts are HalaEvents planning prompts, and the page says nothing in the interview is a legal or permit requirement.
+  An answer like "venue confirmed in writing" is the organizer's statement; HalaEvents doesn't check it with the university.
+
+### 16.3 Tests and limits
+- Unit: `tests/unit/events/interview.test.ts` (schema validation, each operator, rounds, the school-students ⇒ age/consent case, overnight
+  and online branches, stale chains, answer parsing, forged rounds). `tests/unit/events/interview-actions.test.tsx` (action authorization with
+  the Supabase double; page renders for manager, viewer, non-member).
+- DB (PGlite): `tests/db/interview.test.ts` (13 tests: save/upsert/remove, overlap, CHECKs, viewer/outsider/anon/suspended refusal, no direct
+  writes, status lock, cascade). A mutation check (letting any member save) fails the viewer test.
+- **Not verified:** a live Supabase/PostgREST (RPC argument mapping, `jsonb` round trip over HTTP), a browser walkthrough, and concurrent saves by
+  two organizers (each save reads answers and then calls the RPC; a concurrent change can leave an answer that no longer applies. That answer is
+  hidden on read and removed on the next save).
+- **Not built:** editing event details/status, `/api/events/**` route handlers. (AI follow-up questions were added in P3, §17.)
+
+## 17. AI adapter, plan proposals and follow-ups (implemented 2026-10-22)
+
+### 17.1 Provider adapter: Gemini over REST, no SDK
+- **Decision (user, 2026-10-22): no vendor SDK.** `src/lib/ai/gemini.ts` calls the Google AI Studio REST endpoint
+  `POST https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent` with plain `fetch`,
+  `responseMimeType: application/json` and `responseJsonSchema` (from `z.toJSONSchema`, reduced to Gemini's supported keywords
+  by `toGeminiSchema`; everything removed is still enforced by Zod). No new dependency.
+- The API key goes in the `x-goog-api-key` header, never in the URL, logs or error messages. `GEMINI_MODEL` must match
+  `^[a-z0-9][a-z0-9.-]{0,79}$` (it becomes part of the request path); checked by env validation and the adapter.
+- ESLint enforces the boundary: importing `@google/genai`, `@google/generative-ai` or `@google-cloud/vertexai` fails lint anywhere,
+  and the Gemini host may appear only in `src/lib/ai/gemini.ts`.
+- HTTP mapping: 429 → `rate_limited` (with `retryDelay` when Google sends it; **never retried**), 404 → `model_unavailable`,
+  401/403 → `not_configured`, 400 → `provider_error` (not retried), 5xx/network/timeout → retryable. `finishReason ≠ STOP`
+  (truncation, safety) and blocked prompts are failures, never partial data.
+- Providers return raw text only. `generate()` (`src/lib/ai/client.ts`) is the single entry point: per-attempt timeout (30 s),
+  one transient retry with backoff, JSON parse (code fences stripped) → Zod → caller's business-rule `validate()`, and **one repair turn**
+  quoting the validation errors. At most 3 provider calls per request. Data is returned only if it passed every check.
+- Logging (`src/lib/ai/log.ts`): one JSON line per attempt with request id, pipeline, provider, model, attempt, outcome, latency
+  and token counts. The log type has no field for prompts, answers, output or keys.
+- `AI_PROVIDER=mock` (default) uses `src/lib/ai/mock.ts` with fixtures in `src/modules/ai/provider.ts`: the plan fixture returns
+  the deterministic playbook plan, so the demo works offline. Everything it produces is stored with `is_mock = true` and shown with a
+  Mock badge. A misconfigured Gemini fails env validation; there is no silent fallback to the mock.
+
+### 17.2 Playbook data
+`playbooks/university-hackathon.json` (v2): 19 questions, 18 task templates, 7 risk categories, 6 `requiredForPlan` items,
+6 compliance topics (all labelled *not verified*), 5 provider categories. `PlaybookSchema` checks references and task-template
+dependency cycles when `src/playbooks/index.ts` imports it.
+
+### 17.3 Prompts (`src/modules/ai/prompts.ts`)
+- Sent: event type, city, country, timezone, first/last day, duration, venue type, expected attendance, budget, the organizer's
+  interview answers, the applicable playbook items and the evidence id list. **Not sent:** event name, member, provider or attendee data.
+- All variable content sits inside `<data>…</data>` as JSON, and the system prompt says it is data, never instructions.
+- System rules: never claim permits, availability or bookings; no URLs; don't invent laws or authorities, state uncertainty instead.
+
+### 17.4 Pipelines and deterministic rules (`src/modules/ai/{schemas,rules,service}.ts`)
+| Pipeline | Trigger | Output | Deterministic rules |
+|---|---|---|---|
+| `plan` | "Generate plan" / "Regenerate plan" on `/app/events/[id]/plan` | ≤ 40 task proposals + ≤ 8 assumptions | Needs every applicable `requiredForPlan` answer first (no model call otherwise). Unique temp ids, dependencies only on known ids, no self-dependency or cycle, evidence ids only from the supplied catalogue, no URLs, `date` deadlines real and not in the past or > 60 days after the event. Relative deadlines are resolved in the event timezone; pre-event tasks are clamped to the first day; past deadlines move to today; a task due before its dependency gets a warning. |
+| `interview` | "Suggest follow-up questions" after all playbook questions are answered | ≤ 3 questions, keys `custom.*` | Drops reused keys, repeated or reworded-identical questions (answered, dismissed, playbook), URLs; single-choice with < 2 options becomes text; ≤ 15 live per event. Follow-ups are optional and never block the plan. |
+| `revise_task` | Per-task "Revise" with an organizer note (5–300 chars) | one task + change summary | Must keep its temp id and still fit the plan (dependencies, cycles, evidence, dates). Only that task changes. |
+
+- **Evidence:** the model can cite only ids HalaEvents supplied (`answer:<key>`, `playbook:task.*`, `playbook:risk.*`,
+  `playbook:topic.*`). There is no URL field. Web sources arrive with verified knowledge sources in P5.
+- **Duplicate requests:** each call has an `input_hash` (sha256 of the canonical inputs + provider + model + playbook version).
+  An identical plan request reuses the saved plan; changed answers make the plan *stale* and need an explicit regenerate.
+  An identical follow-up request isn't sent again.
+- **Failure:** the run is recorded with its status (`rate_limited`, `timeout`, `invalid_output`, …) and the user sees a plain
+  explanation. If no plan exists yet, the deterministic playbook plan is saved, labelled "Built from the playbook · no AI".
+  An AI failure never replaces an existing plan.
+
+### 17.5 Storage (migration `20261022000002_ai.sql`)
+| Table | Purpose | Readers |
+|---|---|---|
+| `ai_runs` | One row per model request: pipeline, provider, model, input hash, status, attempts, latency, tokens, `is_mock` | event owner/organizers, admins |
+| `ai_plans` | Plan header: `source` (`ai`/`playbook`), assumptions, `status` (`current`/`superseded`), one current plan per event | event members |
+| `ai_suggestions` | Tasks (with `plan_id`) and follow-up questions (`custom.*`): `proposed` → `rejected`/`superseded` (`accepted` reserved for P4) | event members |
+
+- No direct insert/update/delete for any API role. RPCs (SECURITY DEFINER, `search_path = ''`): `start_ai_run` (owner/organizer,
+  active account, event draft/planning/ready; **single flight** per event+pipeline via a partial unique index; runs stuck for 3 min are
+  closed as `abandoned`; **20 runs per user per hour** → SQLSTATE `53400` → `rate_limited`), `finish_ai_run` (caller's own running run only),
+  `save_ai_plan` (supersedes the old plan and its open proposals in one transaction), `save_ai_followups`, `revise_ai_task`
+  (supersede + insert revision + 1), `dismiss_ai_suggestion`. A run's output can be saved once, only by its creator, only if it succeeded.
+- Audit: plan insert/supersede and every suggestion status change go to `audit_log` by trigger.
+- **Nothing is written to tasks.** Accepting proposals into real tasks is P4.
+
+### 17.6 Tests and limits
+- Unit: `tests/unit/ai/client.test.ts` (15: repair, retry limits, no quota retries, timeout, logging without content, mock),
+  `gemini.test.ts` (5: key in header, model-name injection, error mapping, end-to-end repair), `rules.test.ts` (22),
+  `service.test.tsx` (20: authorization before any model call, duplicate/stale handling, quota fallback, invalid output never saved,
+  revision, follow-ups, page labels).
+- DB (PGlite): `tests/db/ai.test.ts` (16: single flight, abandonment, run ownership, hourly cap, viewer/outsider/anon refusal, CHECKs,
+  supersession, no direct writes, audit, revision, dismiss, follow-up limits, event lock, cascade).
+- Live: `npm run test:ai-live` (`tests/live/gemini.live.test.ts`) makes one real plan request; skipped without `GEMINI_API_KEY`/`GEMINI_MODEL`,
+  never part of `npm test`/`verify`.
+- **Not verified:** no real Gemini call has been made (no key on the dev machine); the request shape follows Google's documented REST
+  contract but `responseJsonSchema` acceptance of our reduced schema is unconfirmed. No live Supabase or browser walkthrough.
+- **Known limitation:** the app calls the RPCs with the organizer's own session, so an organizer could call `start_ai_run` → `finish_ai_run`
+  → `save_ai_plan` directly over PostgREST and store hand-written proposals labelled `source = ai`. They can only affect events they manage,
+  and the proposals are still only proposals; moving run recording to a server-only key would close it (not planned for the MVP).
+
+## 18. Event workspace (implemented 2026-10-22)
+
+### 18.1 Pieces
+| Piece | Where |
+|---|---|
+| Edit event details, change lifecycle status | `/app/events/[id]/edit`; status form on `/app/events/[id]` offers only `EVENT_TRANSITIONS[status]`. `updateEvent`/`changeEventStatus` in `events/service.ts` (manager, details editable until completed/archived/cancelled); the 0003 trigger re-checks transitions. |
+| Workspace overview | `/app/events/[id]`: progress (done / non-cancelled tasks), overdue/blocked counts, open checks, concerns, unsaved rule results, due-soon list, status change, "Check deadlines and missing information", timeline. |
+| Tasks | `/app/events/[id]/tasks`; module `src/modules/tasks/` (schemas, rules, repo, service, actions). Migration `20261022000003_workspace.sql`. `/app/tasks` lists events linking to their boards. |
+| Plan → tasks | "Accept all proposed tasks into the workspace" on the plan page → `accept_ai_plan(plan, ids?)`: one transaction creates tasks from `proposed` suggestions, marks them `accepted`, and wires dependencies by plan item key (partial accepts wire up later). The only path from AI output to real tasks. |
+| Timeline | `event_timeline(event, limit)`: SECURITY DEFINER read of `audit_log` for event members (viewers included), returning whitelisted fields only (title, from/to status, source, kind, role, owner changed, due change, simulated). `src/modules/events/timeline.ts` turns rows into sentences. |
+| Notifications | `notifications` table + `/app/notifications` (nav item). §18.5. |
+
+### 18.2 Task rules (deterministic; TS `tasks/rules.ts` = SQL, parity-tested pair by pair)
+- Transitions: `todo → in_progress|done|cancelled`, `in_progress → todo|done|cancelled`, `done → in_progress`, `cancelled → todo`. New tasks start as `todo`.
+- **Blocked** (derived): an open (`todo`/`in_progress`) task with at least one dependency that is neither `done` nor `cancelled`.
+  A blocked task can't become `done` (service + trigger `task_blocked`). **Overdue**: open and `due_date` before today *in the event's
+  timezone*. **Due soon**: open and due within 3 days.
+- Dependencies: same event only, no self-dependency, **no cycles**. The insert trigger takes a row lock on the event and walks the
+  graph with a recursive CTE, so concurrent inserts can't each add half a cycle. The UI only offers dependencies that keep the graph acyclic.
+- Owners must be the event's owner or an organizer (`owner_user_id`); AI/playbook owners are kept as a *suggested role* (`owner_label`).
+- Deadlines are calendar dates (`due_date date`) in the event's timezone, matching the plan's resolved dates.
+- `origin`, `suggestion_id`, `plan_item_key` and `event_id` are immutable; API users can only insert `manual` tasks. Tasks are read-only once
+  the event is completed, archived or cancelled (`event_locked`).
+- Audit: insert/delete and changes of status, owner, deadline, priority, title; dependency insert/delete.
+
+### 18.3 Authorization
+Members (viewers included) read tasks, dependencies and the timeline. Owners/organizers with an active account write (column-level
+grants + RLS + triggers). Service functions check the same first so users get readable errors (`src/lib/errors.ts` maps each rule prefix).
+
+### 18.4 Progress
+`progress()` = done ÷ (total − cancelled), plus overdue and blocked counts, all from stored rows; nothing is cached.
+
+### 18.5 Notifications (in-app only)
+- Kinds: `missing_information`, `compliance_concern`, `deadline_approaching`, `decision_required`, `compliance_status_changed`.
+- `channel` is always `in_app` (CHECK). `delivery_status = delivered` means stored in the recipient's inbox; `read` (with `read_at`) when
+  the recipient marks it. There is **no email, push or WhatsApp** delivery, and nothing claims otherwise.
+- Created by: trigger on new plans (decision required), triggers on compliance checks (§19.5), and `refresh_event_notifications(event, missing)`
+  which computes overdue/due-within-3-days tasks in SQL (to the task owner, else all managers) and takes missing-information labels computed by
+  the app from the playbook. Dedupe keys make every reminder idempotent.
+- **No scheduler:** reminders are refreshed when organizers change tasks, accept a plan or run compliance checks, and from the workspace button.
+  A deadline that passes while nobody uses the app produces no notification until the next refresh. A cron job (Supabase scheduled function) is future work.
+- Recipients read only their own rows; nobody can insert or edit notifications directly.
+
+### 18.6 Tests and limits
+- DB: `tests/db/workspace.test.ts` (12: RLS for every role, forged origin/status, transitions, blocked, self/cross-event/direct/indirect cycles,
+  owner rule, event lock, plan acceptance incl. partial, timeline whitelist + outsider refusal, notification dedupe/recipients/read, TS↔SQL parity).
+  Mutation check: removing the cycle check or the blocked check fails 2 tests.
+- Unit: `tests/unit/tasks/rules.test.ts`, `tests/unit/events/timeline.test.ts`, `tests/unit/workspace/actions.test.tsx` (actions refuse before the DB; page renders).
+- Not verified: live Supabase/PostgREST, a browser walkthrough, concurrent dependency inserts on a real multi-connection Postgres (PGlite is single-connection).
+
+## 19. Compliance workflow (implemented 2026-10-22)
+
+### 19.1 Model (migration `20261022000004_compliance.sql`, module `src/modules/compliance/`)
+| Table | Purpose |
+|---|---|
+| `knowledge_sources` | Curated registry: `key`, `url` (https), `title`, `authority`, `jurisdiction`, `scope`, `source_type`, `summary` + `summary_kind` (none / search-result summary / page excerpt / team paraphrase), `retrieval_status` (not retrieved / retrieved / blocked / not found), `retrieved_at`, `retrieval_note`, `last_verified_at` + `verified_by` + `verification_note` (platform admin only). |
+| `compliance_checks` | Event ID, `topic_key`, `category`, title, description, **reason** (why flagged, in plain language), `origin` (rule / organizer), `severity` (info / possible concern), `applicability`, **status** (§19.2), `status_reason`, `status_set_by` (null = only rules have set it), **reviewer**, **next action**, official channel (a source). |
+| `compliance_references` | Check ↔ source, with a relevance note. |
+| `compliance_evidence` | `note`, `document_reference`, `reference_number`, `link` (https), `submission_reference`, `official_response`; `is_simulated`; who/when. |
+| `official_submissions` | **Simulated only** (`CHECK (is_simulated)`), reference `DEMO-XXXXXXXX`, authority, response summary. |
+Audit history: triggers on checks (insert/delete; status, reviewer, applicability, next action), references, evidence, submissions, and source verification.
+
+### 19.2 States and rules (TS `compliance/rules.ts` = SQL `compliance_transition_allowed`, parity-tested)
+| State | Meaning | Entry rule |
+|---|---|---|
+| Not assessed | nobody looked yet | rules or start |
+| Needs information | an answer/detail is missing | — |
+| Conditional – needs confirmation | may apply depending on details | — |
+| Source-supported finding | linked to an official source **a person verified** | needs a referenced source with `last_verified_at` |
+| Under human review | the reviewer is checking | needs an assigned reviewer (owner/organizer) |
+| Awaiting official response | a submission was recorded | needs a `submission_reference` evidence row or a simulated submission |
+| Cleared based on recorded evidence | reviewer cleared it | only from Under review; only the **assigned reviewer or a platform admin**; needs **non-simulated** evidence and a reason |
+| Action required | something must be done | reason required |
+| Rejected / Closed | flag doesn't apply / no longer relevant | reason required (rejected: reviewer or admin only) |
+Allowed moves: see `COMPLIANCE_TRANSITIONS`. Nothing reaches "Cleared" except through review. Status changes go through `set_compliance_status()` only.
+
+### 19.3 Detection (deterministic, no AI)
+`detectComplianceItems(playbook, answers)`: every playbook compliance topic whose conditions hold becomes a check; a topic whose conditions
+depend on **unanswered** questions becomes "Needs information" with the missing questions in the reason. Explicit concern rules:
+off-campus + open-public audience → permit check marked *possible concern*; minors with guardian consent undecided; minors overnight
+without decided supervision (new check); photography without a consent decision. Reasons quote the triggering answers. Rules may only
+produce `not_assessed`, `needs_information` or `conditional` (enforced by `sync_compliance_checks`), and re-running them never overwrites a
+check a person has changed. **AI-assisted concern detection is not built**: nothing in compliance comes from a model.
+
+### 19.4 Sources (checked 2026-10-22)
+| Key | Source | What happened when checked |
+|---|---|---|
+| `det_event_permit` | DET — Apply for an event permit | HTTP 403 to automated fetches; summary from a web-search snippet (labelled so) |
+| `det_epermits_register` | DET — Register on the ePermits portal | HTTP 403; search-snippet summary |
+| `det_events_activations` | DET — Events and activations | HTTP 403; no summary |
+| `det_ticketed_events` | DET — Issue event tickets | not fetched; search-snippet summary (registration may need a ticketed-event permit; applicability to a free hackathon unknown) |
+| `dda_event_permit` | DDA — Event Permit (free-zone areas) | the report's URL returned **404**; the current URL came from web search and was not fetched; conflicting fee figures, so none recorded |
+| `uae_gov_portal` | u.ae | fetched OK; general portal only |
+**None is verified.** A platform admin marks a source verified (with a note on what was checked) on `/app/compliance`. No live search or
+monitoring provider is configured; the UI says so and never claims to watch government announcements. Source text is data: it is not
+sent to any model and is rendered as plain text.
+
+### 19.5 Concern workflow and notifications
+1. Rules flag a topic (reason + answers recorded; *possible concern* wording, never an accusation). 2. Missing details → "Needs information"
++ notification. 3. The check page explains why, the next action and the official channel (when curated; otherwise "ask the venue/authority").
+4. A reviewer is assigned; only they (or a platform admin) clear or reject. 5. Submissions and official responses are tracked only as
+evidence a person recorded, or as clearly labelled simulations. Nothing reports, blocks or penalizes a member.
+Notifications (in-app): new *possible concern* → managers; new "needs information" check → managers; status change → managers except the
+actor; review requested / reviewer assigned → the reviewer.
+
+### 19.6 Simulated official application (demonstration)
+"Simulate a submission (demo)" creates an `official_submissions` row (`DEMO-` reference, `is_simulated`) and simulated evidence saying
+nothing was sent; "Record simulated response" adds a simulated `official_response`. Both carry a *Simulated · demo* badge and a warning that
+HalaEvents has no connection to DET, DDA or any authority. Simulated evidence never satisfies "Cleared". A non-simulated submission row
+cannot be stored (CHECK). Real applications are tracked by recording the organizer's own reference as `submission_reference` evidence.
+
+### 19.7 Tests and limits
+- DB: `tests/db/compliance.test.ts` (14: registry read/verify, rule sync + references, no overwrite of human decisions, invalid transitions,
+  source-supported needs a verified source, reviewer/evidence/reason boundaries, admin decision, viewer/outsider refusal, custom keys, https links,
+  no direct writes, simulated-only submissions, notifications, audit history, TS↔SQL parity). Mutation check: removing the reviewer-only and
+  real-evidence rules fails 4 tests.
+- Unit: `tests/unit/compliance/rules.test.ts` (detection cases, blockers, labels, inputs), `tests/unit/workspace/actions.test.tsx`.
+- Bug found and fixed: the service returned 404 to platform admins acting as reviewers although the database allowed them.
+- Not built: AI-assisted concern analysis; file uploads for evidence (Storage); requirement-level `verified_source` from the original §3 design
+  (replaced by these states); a scheduler for deadline reminders. Not verified: live Supabase, browser walkthrough, the live content of any source page.
+
+## 20. Attendees (implemented 2026-10-22)
+
+### 20.1 Pieces
+Migration `20261022000005_attendees.sql`; module `src/modules/attendees/`; pages `/app/events/[id]/attendees`, `/app/attendees`
+(event list) and the public `/register/[slug]` (no account, outside `/app`). `events.requires_application` added.
+
+### 20.2 Four separate states
+| Column / table | Values | Changed by |
+|---|---|---|
+| `registration_status` | invited → registered; → withdrawn | public form, organizer (`add_attendee`, `withdraw_attendee`) |
+| `review_status` (application) | not_required; pending → approved / rejected / needs_information; needs_information → pending / approved / rejected; approved / rejected → pending | organizer (`set_attendee_review`) |
+| `participation_status` | pending → accepted / waitlisted / rejected; waitlisted → accepted / rejected / cancelled; accepted → confirmed / cancelled; confirmed → checked_in / cancelled; rejected → pending | organizer (`set_attendee_participation`), registration (auto accept/waitlist) |
+| delivery (per message, §21) | simulated / accepted / failed (delivered / bounced reserved) | email transport only; **never changes the columns above** |
+Transition tables are in `attendees/rules.ts` and SQL, parity-tested pair by pair.
+
+### 20.3 Rules
+- **Capacity:** places = accepted + confirmed + checked-in ≤ `events.capacity`. Checked in `register_attendee` and `set_attendee_participation`
+  under a row lock on the event (`capacity_full`). Withdrawal frees the place; waitlisted people are promoted by an organizer (not automatically).
+- **Registration:** without application review, the form gives a place while places remain, then waitlists. With review: pending/pending, and
+  only approved applications can be accepted (`review_not_approved`). Invited/withdrawn people can't hold a place (CHECK + function).
+- **Duplicates:** unique index on (event, lower-cased email) among non-withdrawn rows. The public form answers **the same message for every
+  outcome** (new, duplicate, waitlisted), so it never reveals whether an email is registered; people learn their place from the acceptance /
+  waitlist notice (§21). Organizer adds get a clear "already registered" error.
+- **Minimal data:** name, email, optional phone, optional application note (only when review is on), consent timestamp (required on the form).
+- **Public access:** `register_attendee` and `public_event_by_slug` (name, dates, timezone, city, venue type, review flag, places left; only while
+  registration is open and the event is planning/ready) are the only anon functions. The form is rate limited per IP (10 / 10 min,
+  in-memory per instance, `src/lib/rate-limit.ts`).
+- **Privacy:** attendee rows are readable by event owner/organizers and admins only. Viewers see counts (`event_attendance_summary`).
+- Audit: insert/delete and every change of the three status columns.
+
+### 20.4 Tests
+`tests/db/attendees.test.ts` (12: capacity 2 → accept, accept, waitlist; duplicates case-insensitive; consent/closed/invalid email; anon reads nothing;
+invited → registered via form; capacity_full and promotion; participation table; invited can't hold a place; 20 registrations / 10 places; review
+gate; viewer/outsider refusal; parity). Mutation check: removing the capacity check fails tests.
+
+### 20.5 Limits
+PGlite is single-connection, so the "20 at once" test is serialized: it checks the counting, not row locking under real concurrency. No attendee
+self-service (confirm/withdraw links), no check-in QR, no import. Rate limiting is per server instance.
+
+## 21. Communications and the approval gate (implemented 2026-10-22)
+
+### 21.1 Pieces
+Migration `20261022000006_communications.sql` (+ booking parts in 0011); module `src/modules/comms/`; email transports
+`src/lib/integrations/email/{types,mock,resend,index}.ts`; page `/app/events/[id]/messages`, `/app/messages` (event list).
+
+### 21.2 Drafts and AI
+- Kinds: invitation, registration confirmation, acceptance, waitlist, reminder, venue update, schedule update, cancellation, recovery, thank-you.
+- Recipients are an **audience** (invited, registered, accepted, waitlisted, confirmed, checked-in, everyone holding a place, one person) resolved
+  in SQL (`communication_recipients`), never chosen by a model. Withdrawn people are always excluded.
+- Placeholders `{{name}}`, `{{event_name}}`, `{{event_date}}`, `{{event_city}}` are filled per recipient in code (`personalize`).
+- **AI drafting** (`draft_message` pipeline, Gemini over REST or the mock): input = event name/status, kind, audience label and the organizer's notes;
+  **no attendee data**. Output is Zod-validated and checked (only known placeholders, no links, no "permit approved"/"venue confirmed" claims);
+  one repair turn, then discarded. A valid result is saved as a **draft** (`drafted_by = ai`, `ai_run_id`, `is_mock_draft`). AI can't request
+  approval or send. `start_ai_run` was extended so drafting works for live/completed/cancelled events (not archived).
+
+### 21.3 Approvals (`approvals` table)
+Fields: action type (`send_communication`, `request_booking`, `cancel_booking`), target, event, recipient summary, **exact payload** (built by
+`approval_payload()` in SQL from the target: for messages subject, body, version, audience and the resolved recipient list) and its **sha256**,
+requester, decider, decision time/note, executor, execution times, result, failure reason. Status: pending → approved / rejected / superseded;
+approved → executing → executed / execution_failed (messages); booking approvals execute in one transaction.
+- **Changed payload ⇒ fresh approval.** Editing a draft supersedes its open approval (`save_communication`). `decide_approval` and
+  `claim_approval` rebuild the payload; any difference (text, or recipients because someone was accepted/withdrew) marks the approval
+  superseded and nothing is approved or sent.
+- One live approval per target; only event owner/organizers request, decide and execute; **self-approval is allowed** (open decision 4: single
+  organizer teams) and recorded (requester and decider are both stored). Every status change is audited.
+
+### 21.4 Sending (two-phase, §5.4)
+1. `claim_approval`: approved → executing exactly once (a second call gets `already_executed`), only for the reviewed payload.
+2. The server sends each recipient the approved text through the transport with idempotency key `approval:attendee`.
+3. `finish_communication`: records one `communication_deliveries` row per approved recipient (results for anyone else are refused), sets the
+   message to sent / partially failed / failed, and the approval to executed (or execution failed if every recipient failed).
+An approval stuck in `executing` is shown as "needs a check" and never retried automatically. A failed message can be edited and re-approved.
+
+### 21.5 Transports and delivery honesty
+| Transport | When | What is recorded |
+|---|---|---|
+| mock (default, `EMAIL_PROVIDER=mock`) | always available | `simulated`, `is_simulated = true`; UI: "Simulated — not sent (mock)", page banner "Simulated sending" |
+| Resend (`EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, `EMAIL_FROM` on a domain verified in Resend) | REST `POST https://api.resend.com/emails`, `fetch`, no SDK, Bearer key in a header, `Idempotency-Key` header | 2xx → `accepted` + provider id ("Accepted by the email provider — delivery not confirmed"); errors → `failed` with HTTP status and a sanitized message |
+The database refuses `accepted` from the mock, `simulated` from Resend, and any `delivered`/`bounced` from the sender: those need provider
+webhooks, which are **not implemented**. Delivery never changes attendee statuses. **Resend has not been called for real** (no key); its
+adapter is tested with a fake `fetch` only.
+
+### 21.6 Tests
+`tests/db/communications.test.ts` (9: exact payload + hash, edit supersedes, recipient change before decision and after approval supersedes,
+no recipients, viewer/outsider refusal, no direct writes, no send without approval, exactly-once claim, executor-only finish, mock vs real status
+rules, unknown recipients refused, attendee status untouched, sent messages locked, audit). `tests/unit/comms/*` (rules, transports with fake fetch,
+actions: unauthorized sending, superseded payload sends nothing, double execution, per-recipient failures, AI draft saved/invalid AI draft
+discarded, page shows the exact payload). Mutation check: disabling the payload-hash comparison fails 4 tests.
+
+## 22. Bookings (implemented 2026-10-22)
+
+### 22.1 Pieces
+Migration `20261022000007_bookings.sql`; `src/modules/bookings/booking-{rules,repo,service,actions}.ts`; pages `/app/events/[id]/bookings`,
+`/app/provider/bookings` (provider nav "Bookings"), `/app/admin/bookings` (admin nav "Booking disputes"); "Propose booking" on submitted,
+unexpired quotes on `/app/requests/[id]`. **No payments.**
+
+### 22.2 States (from, to, actor; TS = SQL, parity-tested)
+| From | To | Who |
+|---|---|---|
+| proposed | awaiting organizer approval | approval requested |
+| proposed | cancelled | organizer |
+| awaiting organizer approval | proposed / awaiting provider | approval rejected or superseded / approval executed |
+| awaiting provider | confirmed / declined by provider | **provider member only** |
+| awaiting provider | cancelled | organizer (withdraws the request) |
+| confirmed | cancelled | **cancellation approval** (organizer) or provider (with reason) |
+| confirmed | completed | organizer, only after the service period ends |
+| confirmed / completed | disputed | organizer or provider, with reason |
+| disputed | confirmed / completed / cancelled | platform admin, with reason |
+"Proposed" and "awaiting organizer approval" cover the brief's *Proposed* / *Awaiting organizer decision*.
+
+### 22.3 Rules
+- A booking **snapshots** the quote (provider name, revision, amount, currency, inclusions, conditions) and the request's service period. Only
+  submitted, unexpired quotes on non-cancelled requests from active providers can be proposed. The approval payload is that snapshot; if it
+  changes after approval, execution is superseded.
+- One live booking per quote and per service request (partial unique indexes).
+- **Conflicts:** a *venue* provider can't confirm a booking that overlaps one of its confirmed/completed/disputed bookings (checked under a lock
+  on the provider row). Service providers (catering, AV…) may serve several events at once, so no overlap rule applies to them. Nothing else
+  about availability is known: a listing's availability statement is not checked.
+- Confirmation is recorded only by `provider_booking_action` by a member of the booked provider (`confirmed_by`, `confirmed_at`; CHECK).
+- Provider members get in-app notifications for requests and cancellations; organizers for provider decisions (new kind `booking_update`).
+- RLS: event owner/organizers and the booked provider's members read; no direct writes. Audited.
+
+### 22.4 Tests and limits
+`tests/db/bookings.test.ts` (11: snapshot, nothing booked on proposal, one live per request, viewer refusal, approval gate, provider-only
+confirmation, cancellation needs approval + reason, completion after the period, disputes resolved by admin only, venue overlap refused, caterer
+double-booking allowed, withdrawn quote not bookable, changed booking after approval superseded, visibility, parity). Mutation checks: removing
+the venue-overlap or the provider-membership check fails tests. Not built: provider calendars/blackouts, payments or deposits, reviews (P10),
+automatic completion. Not verified: live Supabase, real provider accounts, browser walkthrough.
+
+---
+
+## 23. Crisis recovery — simulated venue cancellation (implemented 2026-10-22)
+
+### 23.1 What it is and is not
+An organizer (event owner or organizer) **simulates** a venue cancellation to practice recovery. `incidents.is_simulated` is a CHECK that can only
+be `true`: this workflow can't record a real incident, and every screen says "Simulated". Simulating changes **nothing**: not the venue booking
+(cancelling the real booking stays the approval-gated booking action of §22), not other bookings, not attendees, and no provider or attendee is
+contacted. Pieces: migration `20261022000008_recovery.sql` (written by an interrupted session, reviewed and tested in the next), `src/modules/recovery/{schemas,rules,prompts,repo,service,actions}.ts`, pages
+`/app/events/[id]/incidents` (list + "Simulate cancellation") and `/incidents/[incidentId]`, a "Crisis recovery" button on the event page, a
+"Simulated recovery" badge on recovery drafts in `/messages`. Brief item → where:
+| Brief | Implementation |
+|---|---|
+| 1 record disruption + timestamp | `incidents` row (`simulated_at`, `note`, audit insert) |
+| 2–4 affected booking, tasks, services, compliance | `recovery_impact()` (SQL, deterministic, stored as `incidents.impact`) |
+| 5 ask Gemini | `generateRecovery` → `runPipeline` (pipeline `recovery`) → Gemini REST adapter, or the mock (`AI_PROVIDER`) |
+| 6 validate | Zod `RecoveryProposal` + `validateProposal` (rules.ts) + one repair turn; then `save_recovery_plan` repeats the id checks in SQL |
+| 7 show original plan, affected items, changes, questions | incident page §1 (snapshot), §2 (options, timeline, unresolved questions, risks), §3 (changes) |
+| 8 drafts | `recovery_inquiries` (provider) and a `communications` draft (`venue_update`, linked by `recovery_plan_id`) |
+| 9 approvals | `approvals` gate: `apply_recovery` (selected changes), `send_provider_inquiry`, and the normal `send_communication` |
+| 10 persist + audit | `execute_recovery_approval` (one transaction); audit triggers on every table |
+
+### 23.2 Impact analysis (rules, not AI)
+- **Affected tasks:** tasks of category `venue` plus every task that transitively depends on one (recursive CTE, depth ≤ 20, cancelled tasks excluded),
+  with the reason `venue_task` / `depends_on_venue_work`. Only this event's tasks (tested with a task from another event).
+- **Services:** the event's live bookings with non-venue providers. They are **never cancelled** by the workflow: each is flagged `reconfirm` and gets
+  a templated reconfirmation inquiry (their own terms apply; `playbooks/…json` `recovery.reconfirm` supplies the questions).
+- **Compliance:** non-closed, non-rejected, applicable checks in venue-dependent categories or with venue/access/fire/evacuation in the title,
+  flagged `reassess` (a previously *cleared* check is listed with a note that it was cleared for the old venue).
+- **Candidates:** verified, active, listed venues of suitable capacity and city, other than the cancelled one. `availability` is only
+  `conflict_recorded` (a confirmed booking overlaps) or `unknown` — **never "available"**. A price appears only from a submitted, unexpired quote on this
+  event's venue requests.
+
+### 23.3 Idempotency
+`simulate_venue_cancellation(event, booking, key, note)` locks the event row. Same key → same incident (`created=false`); same key for another booking →
+`idempotency_conflict`; another key while the booking already has an active recovery → that incident; one active incident per booking
+(partial unique index). The key is derived server-side as `sim:<bookingId>:<number of earlier incidents of that booking>`, so a double click or retry
+is one incident and a later re-run after closing gets a fresh key. One proposal per AI run (`recovery_plans_one_per_run`); one open proposal per incident.
+
+### 23.4 What the model may and may not do
+Output (`RecoveryProposal`, flat for Gemini's schema subset): summary, 1–3 options, recommended option, timeline, task due-date changes, new tasks, review notes,
+provider inquiries, attendee update, unresolved questions, risks. **There is no field that cancels, rebooks or confirms anything** and
+`recovery_changes.kind` is CHECKed to `reschedule_task | add_task | flag_review`. `validateProposal` rejects (and asks the model once to repair): ids outside the
+snapshot, non-open or duplicate task changes, dates outside today…event start (event timezone), duplicate option keys or an unknown recommendation, candidate
+venues outside the list, inquiries to the wrong party for their purpose, review notes about things outside the incident, links, unknown placeholders,
+candidate venue names in the attendee update, **statements** that something is available/confirmed/secured/approved, that a provider agreed, that a permit carries
+over, and **prices not present in the data**. Questions and hedged sentences ("please confirm whether…") are allowed. This is a best-effort pattern check, not
+a proof; the guarantees that matter are structural (the model can't express a cancellation, flags are decided by code, nothing applies without approval).
+A failed proposal stores nothing; there is **no fabricated fallback proposal** (the deterministic impact analysis stays usable).
+Not enforced: that dependent tasks keep their order when moved (the prompt asks; the snapshot carries no dependency edges).
+
+### 23.5 Approval flow
+Propose → (nothing applied) → select changes (`set_recovery_selection`, supersedes any open approval) → `request_approval('apply_recovery')` (payload =
+selected changes + the **current** state of each task/booking/check + proposal hash) → `decide_approval` → `execute_recovery_approval` (re-checks the payload;
+if a task changed meanwhile the approval is `superseded` and nothing is applied) → applied changes `applied`, the rest `skipped`, plan `approved` /
+`partially_approved`. Provider inquiries: own approvals; "executed" only records `sent_simulated` (nobody is contacted; the approval result says
+`contacted:false`). Attendee update: the normal message approval; `sendApproved` forces the **mock transport** for any communication with `recovery_plan_id`,
+and a trigger on `communication_deliveries` refuses any other transport for such messages. All drafts carry a `[SIMULATION]` label and a
+"SIMULATED DEMO" prefix added in SQL. Rejecting or replacing a proposal withdraws its approvals and cancels its drafts. Resolving an incident needs an applied plan
+and a note; dismissing needs a note.
+
+### 23.6 Tests, mutation checks, limits
+`tests/db/recovery.test.ts` (32), `tests/unit/recovery/rules.test.ts` (30), `tests/unit/recovery/service.test.tsx` (16). Mutation check (three mutations applied together: impact-membership check removed, payload re-check at execution removed, "skip unselected"
+replaced by "apply unselected"): 7 DB tests failed; restored → 32 pass. Disabling `validateProposal` in the service failed the 2 invalid-proposal unit tests.
+Not verified: a real Gemini response (the nested `RecoveryProposal` schema has never been sent to Google), live Supabase, concurrency (PGlite is single-connection), a browser walkthrough.
+Not built: real incidents, replacement-venue booking from the incident page, dependency-order enforcement, the playbook's `riskCategories` in the prompt, notifications to the team.
+
+---
+
+## 24. Post-event reviews (implemented 2026-10-22)
+
+### 24.1 Pieces
+Migration `20261022000009_reviews.sql`; `src/modules/reviews/{schemas,rules,repo,service,actions}.ts`; `src/components/reviews/rating.tsx`; pages `/app/reviews` (nav "Reviews"),
+`/app/admin/reviews` (admin nav "Review moderation"); a Reviews card on `/app/marketplace/[providerId]`.
+
+### 24.2 Eligibility (one function, `review_check`, used by create and by the candidate list)
+A review exists only through `create_review(booking, direction, rating, body)`:
+- the booking must be **`completed`** (the organizer completes it after the service period; §22);
+- `organizer_to_provider`: caller is an event **owner/organizer** of the booking's event (viewers can't); `provider_to_organizer`: caller is a **member of the booked provider** *and* the platform
+  setting `provider_reviews_of_organizers` is on (default **off**; only a platform admin changes it, audited);
+- active account; **no conflict of interest** (a reviewer can't be on both sides);
+- **one review per booking and direction** (`unique (booking_id, direction)`): the team shares one slot, so a co-organizer can't add a second. Reviews can't be edited.
+**Verified transaction:** there is no parameter, column or grant that lets a user assert it. Clients have no write access to `reviews`; every review references a booking that was
+`completed` at submission, and the "Verified booking" badge is shown only for reviews whose booking is **still** `completed` when read (a booking later moved to `disputed` drops out of lists and averages).
+
+### 24.3 Displayed ratings
+`provider_rating_summary` / `provider_reviews` count **published** `organizer_to_provider` reviews of still-completed bookings. Hidden reviews, provider→organizer reviews and
+reviews of re-disputed bookings are excluded. An empty history is `0 reviews, average null` and shown as "No reviews yet" (never "0.0"). A caller who may not see the provider
+(not verified/active/listed and not a member/admin) gets **no rows**, which the UI shows as "not shown", not "0 reviews". Organizer ratings (`organizer_rating_summary`,
+`organizer_reviews`) are visible to the organizer, platform admins and members of any provider only. The public list shows the reviewer's display name.
+
+### 24.4 Responses, reports, disputes, moderation
+- `respond_to_review`: the reviewed side (provider members for a review of a provider; event owner/organizers for a review of an organizer), once per review, immutable.
+- `report_review(kind='report')`: anyone who is not on the reviewer side and can see the review; `kind='dispute'`: only the reviewed side. One of each per user (unique). Hidden reviews can't be reported by outsiders.
+- Admins: `moderate_review` (hide/restore, reason ≥ 5 chars, audited), `resolve_review_report` (upheld/dismissed + reason, optionally hides the review). `/app/admin/reviews` lists open reports and the 30 latest reviews.
+- Both sides and admins read every status of their own reviews (RLS); everyone else uses the functions.
+
+### 24.5 Tests, mutation checks, limits
+`tests/db/reviews.test.ts` (36), `tests/unit/reviews/{rules,service}.test.ts(x)` (16 + 13), nav test updated (two new items). Mutation checks, each applied alone and restored: removing the completion requirement (at least 6 tests failed), the provider-side conflict check (4 failed), the platform
+policy (4 failed), or the `published` filter in the average (4 failed). Not built: editing or deleting a review, a review window, notifications about new reviews/responses, ratings in directory search/ranking,
+provider ratings of organizers in the request flow, anonymous reviews. Not verified: live Supabase, browser walkthrough.
+
+
+## 25. Integrations, security and reliability (phase 9, 2026-10-22)
+
+**Provider interfaces** (`src/lib/integrations/`): email (existing), weather, places (venue discovery), official sources, calendar (interface only, no adapter, nothing calls it).
+Every external-data result is `IntegrationResult<T>` with `Provenance` (provider, `isMock`, `retrievedAt`, optional `sourceUrl`, `providerIds`). Responses are Zod-validated, read through a timeout + 256 KB cap (`boundedJson`), redirects refused, errors reduced to a safe code/message (no URL, no body).
+
+| Integration | Modes | State |
+|---|---|---|
+| Gemini | `mock` (default) / `gemini` | adapter built (§17), **never called live** |
+| Email | `mock` / `resend` | adapter built (§21), **never called live** |
+| Weather | `mock` / `open-meteo` | the one narrow live integration (no key); tested with a fake `fetch` only; **no UI uses it yet** |
+| Places | `mock` / `none` / `google` | mock only; `google` returns an honest "not implemented" error, never mock data |
+| Official sources | `mock` / none | mock fixture only; nothing monitors any portal |
+
+Rules: discovery results carry `availability: "unknown"` (a lead, not availability); a forecast is planning context, not a weather warning (`FORECAST_DISCLAIMER`); a source snapshot is never evidence that a requirement is verified (§19).
+Mock mode: startup logs which integrations are mock (`src/instrumentation.ts`); `/status` and results show it.
+
+**Security measures:** response headers + CSP in `next.config.ts` (CSP keeps `script-src 'unsafe-inline'`, see the comment there); Server Action body limit 256 kb; `poweredByHeader` off;
+per-user AI burst limit (6/min, in-memory) in front of the SQL hourly cap (20/h); production start fails on an invalid environment (names only); `npm run db:reset` needs `--yes` and a local URL;
+regression tests `tests/unit/security/static.test.ts` (no raw HTML, server-only modules, secret names, client/server imports, log call sites, headers).
+**Reviewed, no change needed:** no file uploads exist; `next` redirects already go through `safeNextPath`; RLS/anon/SECURITY DEFINER pins are tested in `tests/db/schema.test.ts`; SQL is only via PostgREST/RPC parameters.
+**Remaining limitations:** in-memory limiters reset on restart and are per instance; CSP allows inline scripts; no CSRF token beyond Next's Origin check for Server Actions; no live Supabase, so RLS is verified on PGlite only;
+no dependency audit fix (5 dev-only findings); logs were checked by call-site, not by runtime sampling; this review is not a penetration test.

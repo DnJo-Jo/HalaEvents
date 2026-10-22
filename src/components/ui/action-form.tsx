@@ -22,6 +22,8 @@ export interface ActionFormProps {
   /** Clear the fields after a successful submission (e.g. "add item" forms). */
   resetOnSuccess?: boolean;
   className?: string;
+  /** Lets buttons elsewhere submit this form via their `form` attribute. */
+  id?: string;
   "aria-label"?: string;
 }
 
@@ -52,6 +54,7 @@ export function ActionForm({
   return (
     <form
       ref={formRef}
+      id={rest.id}
       noValidate
       aria-label={rest["aria-label"]}
       className={cn("space-y-4", className)}

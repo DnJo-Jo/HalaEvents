@@ -27,11 +27,16 @@ describe("navigation", () => {
       "Marketplace",
       "My business",
       "Quote requests",
+      "Bookings",
       "Tasks",
       "Attendees",
       "Messages",
       "Compliance",
+      "Notifications",
+      "Reviews",
       "Provider review",
+      "Booking disputes",
+      "Review moderation",
       "Settings",
     ]);
   });

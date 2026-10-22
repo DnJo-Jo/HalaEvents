@@ -2,6 +2,8 @@ import "server-only";
 import { z } from "zod";
 import type { SupabaseServerClient } from "@/lib/db/server";
 import { fromDbError } from "@/lib/errors";
+import { AnswerValue, type Answers } from "./interview-rules";
+import { TimelineEntry } from "./timeline";
 import { EventMemberRole, EventStatus, VenueType, type EventFormInput } from "./schemas";
 
 export const EventRow = z.object({
@@ -85,4 +87,82 @@ export async function createEvent(
     .single();
   if (error) throw fromDbError(error);
   return z.object({ id: z.string() }).parse(data).id;
+}
+
+const InterviewAnswerRow = z.object({ question_key: z.string(), answer: AnswerValue });
+
+export async function listInterviewAnswers(
+  db: SupabaseServerClient,
+  eventId: string,
+): Promise<Answers> {
+  const { data, error } = await db
+    .from("interview_answers")
+    .select("question_key, answer")
+    .eq("event_id", eventId);
+  if (error) throw fromDbError(error);
+  return Object.fromEntries(
+    z
+      .array(InterviewAnswerRow)
+      .parse(data)
+      .map((r) => [r.question_key, r.answer]),
+  );
+}
+
+export async function saveInterviewAnswers(
+  db: SupabaseServerClient,
+  eventId: string,
+  playbook: { id: string; version: number },
+  answers: Answers,
+  removeKeys: string[],
+): Promise<void> {
+  const { error } = await db.rpc("save_interview_answers", {
+    p_event_id: eventId,
+    p_playbook_id: playbook.id,
+    p_playbook_version: playbook.version,
+    p_answers: answers,
+    p_remove_keys: removeKeys,
+  });
+  if (error) throw fromDbError(error);
+}
+
+export async function updateEvent(
+  db: SupabaseServerClient,
+  id: string,
+  e: EventFormInput,
+): Promise<void> {
+  const { error } = await db
+    .from("events")
+    .update({
+      name: e.name,
+      venue_type: e.venueType ?? null,
+      location_text: e.locationText ?? null,
+      city: e.city ?? null,
+      timezone: e.timezone,
+      starts_at: e.startsAt,
+      ends_at: e.endsAt,
+      capacity: e.capacity,
+      budget_amount: e.budgetAmount ?? null,
+      currency: e.currency,
+    })
+    .eq("id", id);
+  if (error) throw fromDbError(error);
+}
+
+export async function setEventStatus(
+  db: SupabaseServerClient,
+  id: string,
+  status: EventStatus,
+): Promise<void> {
+  const { error } = await db.from("events").update({ status }).eq("id", id);
+  if (error) throw fromDbError(error);
+}
+
+export async function listTimeline(
+  db: SupabaseServerClient,
+  eventId: string,
+  limit = 30,
+): Promise<TimelineEntry[]> {
+  const { data, error } = await db.rpc("event_timeline", { p_event_id: eventId, p_limit: limit });
+  if (error) throw fromDbError(error);
+  return z.array(TimelineEntry).parse(data ?? []);
 }

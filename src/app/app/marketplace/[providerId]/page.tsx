@@ -15,6 +15,10 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { listMyEvents } from "@/modules/events/service";
 import { addToShortlistAction } from "@/modules/marketplace/actions";
 import { getListing } from "@/modules/marketplace/service";
+import { getProviderRatings } from "@/modules/reviews/service";
+import { RatingSummaryView, Stars, VerifiedBadge } from "@/components/reviews/rating";
+import { reportAction } from "@/modules/reviews/actions";
+import { formatDate } from "@/lib/dates";
 import {
   ACCESSIBILITY_LABELS,
   CATEGORY_LABELS,
@@ -31,9 +35,8 @@ export default async function ProviderDetailPage({
 }) {
   const { providerId } = await params;
   if (!z.uuid().safeParse(providerId).success) notFound();
-  const [{ provider: p, venue, services, isOwnListing, shortlistedIn }, events] = await Promise.all(
-    [getListing(providerId), listMyEvents()],
-  );
+  const [{ provider: p, venue, services, isOwnListing, shortlistedIn }, events, ratings] =
+    await Promise.all([getListing(providerId), listMyEvents(), getProviderRatings(providerId)]);
   const manageable = events.filter(
     (e) =>
       (e.member_role === "owner" || e.member_role === "organizer") &&
@@ -200,6 +203,62 @@ export default async function ProviderDetailPage({
         </div>
 
         <aside className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Reviews</CardTitle>
+              <CardDescription>
+                From organizers after a completed booking on HalaEvents. Hidden reviews are not
+                counted.
+              </CardDescription>
+            </CardHeader>
+            <CardBody className="space-y-3">
+              {ratings ? (
+                <>
+                  <RatingSummaryView summary={ratings.summary} />
+                  <ul className="space-y-3">
+                    {ratings.reviews.map((r) => (
+                      <li key={r.id} className="space-y-1 border-t border-line pt-2 text-sm">
+                        <p>
+                          <Stars rating={r.rating} /> {r.verified && <VerifiedBadge />}
+                        </p>
+                        <p className="whitespace-pre-wrap">{r.body}</p>
+                        <p className="text-xs text-ink-muted">
+                          {r.reviewer_name} · {formatDate(r.created_at)}
+                        </p>
+                        {r.response_body && (
+                          <p className="rounded bg-surface-muted p-2 text-xs">
+                            <span className="font-medium">Provider response:</span>{" "}
+                            {r.response_body}
+                          </p>
+                        )}
+                        {!isOwnListing && (
+                          <details>
+                            <summary className="cursor-pointer text-xs text-primary">
+                              Report this review
+                            </summary>
+                            <ActionForm action={reportAction.bind(null, r.id)} className="mt-2">
+                              <input type="hidden" name="kind" value="report" />
+                              <input type="hidden" name="reason" value="inaccurate" />
+                              <FormField label="What is wrong?">
+                                <Input name="details" required minLength={5} maxLength={1000} />
+                              </FormField>
+                              <SubmitButton size="sm" variant="secondary">
+                                Send report
+                              </SubmitButton>
+                            </ActionForm>
+                          </details>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <p className="text-sm text-ink-muted">
+                  Reviews aren&rsquo;t shown for this listing.
+                </p>
+              )}
+            </CardBody>
+          </Card>
           <Card>
             <CardHeader>
               <CardTitle>Shortlist for an event</CardTitle>

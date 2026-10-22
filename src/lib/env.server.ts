@@ -46,6 +46,14 @@ export const ServerEnvSchema = z
       }
     };
     need(env.AI_PROVIDER === "gemini", ["GEMINI_API_KEY", "GEMINI_MODEL"], "AI_PROVIDER=gemini");
+    // Same rule as GeminiModelName in src/lib/ai/gemini.ts: the id becomes part of the request path.
+    if (env.GEMINI_MODEL && !/^[a-z0-9][a-z0-9.-]{0,79}$/.test(env.GEMINI_MODEL)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["GEMINI_MODEL"],
+        message: "must be a model id such as gemini-2.5-flash",
+      });
+    }
     need(
       env.EMAIL_PROVIDER === "resend",
       ["RESEND_API_KEY", "EMAIL_FROM"],

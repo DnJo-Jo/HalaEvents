@@ -102,21 +102,231 @@ Implemented and tested **locally** (PGlite + unit/render tests). Still no live S
 | Smoke, production, no Supabase | ✅ all new `/app/**` routes → 307 to `/sign-in?next=…` (target preserved) |
 | Signed-in pages against a real database | ⏳ **not run** |
 
+## Phase 5 — P2 adaptive interview, deterministic first round (2026-10-22) 🚧
+Implemented and tested **locally** (PGlite + unit/render tests). Still no live Supabase. No new dependencies.
+- ✅ State at session start re-verified: clean tree at commit `01f6d60`; `npm run verify` passed (18 files, 287 tests) before any change.
+- ✅ `PlaybookSchema` (`src/modules/ai/playbook.ts`): typed questions (single/multi choice, yes/no, number, text) with conditions on
+  event facts or *earlier* answers only, so there are no cycles or dangling references; checked when the playbook is imported.
+- ✅ Playbook `src/playbooks/university-hackathon.ts` (v1, 19 questions). Wording is planning prompts, not legal requirements.
+- ✅ Pure rules `src/modules/events/interview-rules.ts`: condition evaluation, rounds of ≤ 5 new questions, dependent-chain hiding,
+  stale-answer detection, Zod validation of every answer against its question, display formatting.
+- ✅ Migration `20261022000001_interview.sql`: `interview_answers` + RPC `save_interview_answers` (owner/organizer, active account,
+  event in draft/planning/ready; upsert + remove in one transaction). Members read; there is no direct write grant.
+- ✅ UI `/app/events/[id]/interview` (form for managers, read-only for viewers/locked events) + "Planning interview" link on the event page.
+- ✅ Bug found by a new test and fixed before commit: playbook validation accepted unknown `event.*` condition keys.
+- ⏳ Not done (rest of P2): edit event details / status transitions UI (`UpdateEventInput`, `invalid_transition` → 409); API route handlers
+  (`/api/events/**`). AI follow-up questions are P3.
+
+### Migration status
+| Migration | PGlite (tests) | Real Supabase |
+|---|---|---|
+| `…0001`–`…0004` | ✅ | ⏳ never |
+| `20261022000001_interview.sql` | ✅ (new, never applied anywhere else) | ⏳ never |
+
+### Command results (2026-10-22)
+| Command | Result |
+|---|---|
+| `docker ps` | ❌ no access (unchanged); no `.env.local` |
+| `npm run verify` (before changes) | ✅ 18 files, 287 tests, build OK |
+| `vitest run tests/unit/events/interview.test.ts` | first run 1 failed (real bug above), then ✅ 27 |
+| `vitest run --project db tests/db/interview.test.ts` | first run 1 failed (test mistake: empty payload never hits the CHECK), then ✅ 13 |
+| Mutation check | letting any event member save → "viewers … cannot save" fails; migration restored, ✅ 13 again |
+| `vitest run tests/unit/events/` | first run 1 failed (assertion wording), then ✅ 36 |
+| `npm run verify` (final) | ✅ lint, typecheck, format, **21 files, 336 tests** (198 unit + 138 db), build (new route `◐ /app/events/[eventId]/interview`) |
+| Smoke, `next start`, no Supabase env | ✅ `/app/events/<uuid>/interview` → 307 `/sign-in?next=…` (target kept); `/` 200 |
+| Signed-in interview against a real database / browser | ⏳ **not run** |
+
+## Phase 6 — P3 AI adapter & plan generation (2026-10-22) 🚧
+Built in a session that was interrupted before its docs were written; reconciled and finished in the next session (same day).
+Implemented and tested **locally** (fakes + PGlite). **No real Gemini call yet** (no key), no live Supabase. No new dependencies.
+- ✅ Decision (user): **Gemini over REST, no SDK.** `src/lib/ai/gemini.ts` uses `fetch` to `generateContent` with JSON-schema output; key in a header.
+- ✅ Shared client `src/lib/ai/client.ts`: timeout, one transient retry, no quota retries, Zod + business-rule validation, one repair turn, ≤ 3 calls.
+- ✅ Deterministic mock provider (default `AI_PROVIDER=mock`): plan = playbook plan, results flagged `is_mock` and badged.
+- ✅ Pipelines: plan (≤ 40 proposals, resolved deadlines, DAG + evidence checks), interview follow-ups (≤ 3 per run, `custom.*`), single-task revision.
+- ✅ Playbook moved to JSON data `playbooks/university-hackathon.json` (v2: + 18 task templates, risks, unverified compliance topics, provider categories).
+- ✅ Migration `20261022000002_ai.sql`: `ai_runs`, `ai_plans`, `ai_suggestions`, 6 RPCs, single flight, 20 runs/user/hour, audit triggers, RLS (no direct writes).
+- ✅ UI: `/app/events/[id]/plan` (generate/regenerate, per-task revise/dismiss, evidence, warnings, Mock / "no AI" labels); follow-ups on the interview page.
+- ✅ This session: ESLint guard (no Google SDK imports; Gemini host only in `gemini.ts`), `event.md` §17, docs reconciled.
+- ⏳ Not done: real Gemini smoke test (`npm run test:ai-live`, needs `GEMINI_API_KEY` + `GEMINI_MODEL` in `.env.local`); accepting proposals into tasks (P4);
+  P2 leftovers (event edit/status UI, `/api/events/**`).
+
+### Migration status
+| Migration | PGlite (tests) | Real Supabase |
+|---|---|---|
+| `…0001`–`…0004`, `20261022000001_interview.sql` | ✅ | ⏳ never |
+| `20261022000002_ai.sql` | ✅ (new) | ⏳ never |
+
+### Command results (2026-10-22, this session)
+| Command | Result |
+|---|---|
+| `npm run typecheck`, `npm run lint` (state left by the interrupted session) | ✅ no errors |
+| `npm run verify` | ✅ lint, typecheck, format, **26 files / 420 tests**, build (new route `◐ /app/events/[eventId]/plan`) |
+| `npm run test:unit` / `npm run test:db` | ✅ 19 files / 266 tests · ✅ 7 files / 154 tests |
+| `npm run test:ai-live` | ⏭ 1 test **skipped** (no Gemini key/model); no real Gemini request made |
+| ESLint probe (temp file importing `@google/genai` + Gemini URL, then deleted) | ✅ 3 errors as intended; `npx eslint .` clean afterwards |
+| `npm run verify` (final, after all changes) | ✅ exit 0, 420 tests, build OK |
+
+## Phase 7 — Event workspace & compliance workflow (user's "Phase 6" brief, 2026-10-22) 🚧
+Implemented and tested **locally** (PGlite + unit/render tests). No live Supabase, no browser walkthrough. No new dependencies.
+
+**Real (works end to end in code, enforced in the DB):**
+- ✅ Event edit page + lifecycle status change (only allowed transitions offered; service + trigger enforce).
+- ✅ Tasks: create, status (deterministic transitions), owner (event managers only), deadline (event-timezone dates), dependencies with
+  self/cross-event/cycle rejection (trigger with event lock + recursive check), blocked/overdue/due-soon derived, blocked tasks can't be done.
+- ✅ Plan acceptance: `accept_ai_plan` turns proposals into tasks + dependencies in one transaction (the only AI → task path).
+- ✅ Progress from persisted data; event timeline from the audit log (whitelisted fields, visible to all members).
+- ✅ Compliance checks with ten states, reasons, applicability, reviewer, next action, references, evidence, audit history; human-only
+  clearing (assigned reviewer or platform admin, real evidence, reason); "source-supported" only with a person-verified source.
+- ✅ Deterministic concern detection from interview answers (permit, minors consent/overnight supervision, photo consent, food, prizes, campus policy).
+- ✅ In-app notifications (missing info, possible concerns, deadlines, decisions, status changes) with accurate delivery status (`delivered` = in inbox, `read`).
+
+**Curated:** 6 official sources (DET event permit, e-Permits registration, events & activations, ticketed events; DDA event permit; u.ae).
+Checked 2026-10-22: DET pages return HTTP 403 to automated fetches (summaries are labelled search-result snippets); the DDA URL from the project
+report is 404 (replaced by the URL web search returned, not fetched); u.ae fetched OK. **None is verified** until a platform admin does it.
+
+**Simulated (labelled "Simulated · demo"):** official submissions (`DEMO-` references, CHECK forbids non-simulated rows) and official responses.
+Nothing is transmitted; simulated evidence can't clear a check.
+
+**Missing / not built:** live search or monitoring of sources; AI-assisted concern analysis; evidence file uploads; a scheduler for deadline
+reminders (refreshed on organizer actions + a button); email/push delivery; `/api/**` route handlers for events/tasks/compliance; live Supabase verification.
+
+- ✅ Bug found by a new test and fixed: platform admins (allowed by the DB to review) got a 404 from the check page/service.
+- ✅ Test infrastructure: the full parallel run was SIGKILLed (out of memory) once two more PGlite test files existed; the db project now runs after
+  the unit project with `maxWorkers: 3` (`vitest.config.mts`).
+
+### Migration status
+| Migration | PGlite (tests) | Real Supabase |
+|---|---|---|
+| `…0001`–`…0004`, `20261022000001`–`…0002` | ✅ | ⏳ never |
+| `20261022000003_workspace.sql` | ✅ (new) | ⏳ never |
+| `20261022000004_compliance.sql` (incl. source registry data) | ✅ (new) | ⏳ never |
+
+### Command results (2026-10-22, this session)
+| Command | Result |
+|---|---|
+| `curl`/fetch of the report's official URLs | DET ×3: HTTP 403; DDA: 404 (redirect to /en/404); u.ae: 200 |
+| `vitest run --project db tests/db/workspace.test.ts` | ✅ 11 first run; mutation (cycle + blocked checks removed) → 2 fail; restored ✅ |
+| `vitest run --project db tests/db/compliance.test.ts` | 1st: suite error (fixture: onboarding needs a role); 2nd: 1 fail (test called a non-existent helper); then ✅ 13; mutation (reviewer-only + real-evidence removed) → 4 fail; restored ✅ |
+| + TS↔SQL parity tests | ✅ 26 (12 + 14) |
+| `vitest run tests/unit/tasks tests/unit/compliance tests/unit/events/timeline.test.ts` | ✅ 20 |
+| `vitest run tests/unit/workspace` | 1 fail (real bug: admin reviewer 404) → fixed → ✅ 16 |
+| `npm run verify` (1st) | ❌ format (1 file) → fixed; (2nd) ❌ worker SIGKILL (out of memory) → `maxWorkers: 3` for db; (3rd) ❌ vitest requires a separate `groupOrder` → set |
+| `npm run verify` (final) | ✅ lint, typecheck, format, **32 files / 483 tests** (303 unit + 180 db), build (new routes `◐ /app/events/[eventId]/{edit,tasks,compliance,compliance/[checkId]}`, `/app/compliance`, `/app/notifications`) |
+| Smoke, `next start`, no Supabase env | ✅ all 8 new routes → 307 `/sign-in?next=…` |
+| Signed-in pages against a real database / browser | ⏳ **not run** |
+
+## Phase 8 — Bookings, attendees & communications (user's "Phase 7" brief, 2026-10-22) 🚧
+Implemented and tested **locally** (PGlite + unit/render tests). No live Supabase, no real email sent, no real provider confirmation, no browser
+walkthrough. No new dependencies (Resend is called over REST with `fetch`, like Gemini).
+
+**Real (enforced in the database, tested):**
+- ✅ Attendees: public registration (`/register/[slug]`, anon RPC, consent, rate limit, neutral response), capacity (accept → waitlist), duplicate
+  prevention, optional application review (pending / needs information / approved / rejected), participation (accepted, waitlisted, rejected,
+  confirmed, checked in, cancelled), withdrawal. Registration, review, participation and delivery are four separate states.
+- ✅ Approvals: exact payload + sha256, requester/decider/executor/timestamps/result; edits or recipient changes supersede (fresh approval);
+  exactly-once execution; stuck executions flagged, never auto-resent.
+- ✅ Communications: persisted drafts for all ten kinds, audiences resolved in SQL, placeholders filled in code, AI drafts (validated, saved as
+  drafts only), preview, approval, two-phase send, per-recipient delivery rows.
+- ✅ Bookings: proposed (quote snapshot) → approval → awaiting provider → **provider-only** confirmation; cancellation of confirmed bookings via
+  approval; completion after the service period; disputes resolved by platform admins; one live booking per quote/request; venue overlap refused.
+
+**Simulated / mock:** email transport (default) records `simulated` deliveries and emails nobody; the UI says "Simulated — not sent".
+The mock AI drafts a template. **Real but never exercised:** the Resend adapter (tested with a fake `fetch` only).
+**Not built:** payments (out of scope), provider calendars, reviews, delivery/bounce webhooks, attendee self-service links, eligibility rules,
+automatic waitlist promotion, scheduled reminders. Concurrency is only serialized on PGlite.
+
+- ✅ Problems found and fixed while building: generic `request_approval`/`claim_approval` could bypass booking preconditions or strand a booking
+  approval in "executing" (now refused); provider confirmation violated its own CHECK (order fixed); the public form's messages revealed
+  whether an email was registered (now one message); the build failed because `/register/[slug]` read runtime data outside Suspense (wrapped).
+- Schema test changed on purpose: anon may now execute exactly `register_attendee` and `public_event_by_slug` (allow-list pinned).
+
+### Migration status
+| Migration | PGlite (tests) | Real Supabase |
+|---|---|---|
+| `…0001`–`…0004`, `20261022000001`–`…0004` | ✅ | ⏳ never |
+| `20261022000005_attendees.sql` | ✅ (new) | ⏳ never |
+| `20261022000006_communications.sql` | ✅ (new) | ⏳ never |
+| `20261022000007_bookings.sql` | ✅ (new) | ⏳ never |
+
+### Command results (2026-10-22, this session)
+| Command | Result |
+|---|---|
+| `vitest run --project db tests/db/schema.test.ts` | 1 fail (anon allow-list, intended change) → test narrowed to the 2 functions → ✅ |
+| `vitest run --project db tests/db/{attendees,communications,bookings}.test.ts` | ✅ attendees 10 (12 after two added tests), communications 9, bookings 11 — every first run passed, hence the mutation checks |
+| Mutation checks (cumulative: backups failed because the scratchpad dir was gone, so mutations stacked; restored by hand and re-verified) | hash check off → 4 fail; + capacity off → 6; + venue overlap off → 7; + provider membership off → 8; restored → ✅ 31 |
+| `vitest run tests/unit/comms` | 1 fail (test mistake: identity lookup RPC counted as a write) → fixed → ✅ 23 |
+| `npm run verify` (1st) | ❌ build: `/register/[slug]` uncached data outside Suspense → fixed |
+| `npm run verify` (final) | ✅ lint, typecheck, format, **38 files / 540 tests** (328 unit + 212 db), build |
+| Smoke, `next start`, no Supabase env | ✅ 7 new `/app/**` routes → 307 sign-in; `/register/campus-hack` → 200 with the "not configured" notice (public, not redirected) |
+| Real email / real provider / browser | ⏳ **not run** |
+
+## Phase 9 — Crisis recovery (P8) and post-event reviews (P10), 2026-10-22 🚧
+Implemented and tested **locally** (PGlite + unit tests with a scripted AI provider). No live Supabase, **no real Gemini request**, nothing sent to anyone, no browser walkthrough. No new dependencies.
+
+**Starting state found (not what the handoff said):** an interrupted session had left `20261022000008_recovery.sql` (~980 lines, applied by the DB harness on every run but untested) and `src/modules/recovery/schemas.ts`
+(plus an unformatted playbook JSON); the handoff still said P8 was not started. Reviewed the migration, wrote its tests first: it needed **no logic fix** (all failures in the first runs were test-fixture mistakes);
+only its header comment ("0012") was corrected.
+
+**Crisis recovery (all simulated; `event.md` §23):**
+- ✅ Simulation action (organizer/owner only), idempotent (event lock, key per booking+attempt, one active incident per booking), `is_simulated` CHECK-true, booking untouched, audit.
+- ✅ Deterministic impact snapshot in SQL: venue tasks + transitive dependents, service bookings (flagged for reconfirmation, **never cancelled**), venue-related compliance checks, candidate venues (availability only "unknown"/"conflict recorded"), prices only from submitted quotes.
+- ✅ AI pipeline `recovery` (Gemini REST adapter or deterministic mock): Zod + `validateProposal` + one repair turn + SQL re-check; no cancel/rebook/confirm capability exists in the schema or in `recovery_changes.kind`; failure stores nothing.
+- ✅ Changes selectable; approval payload = selected changes + current state; execution in one transaction; changed state → superseded; inquiries recorded as `sent_simulated` only; attendee update forced to the mock transport (service + DB trigger).
+- ✅ UI: list + simulate form, incident page (original plan/affected items, options, timeline, unresolved questions/risks, budget from quotes, change checklist, approval checklist, drafts, flags, close), event-page button, messages badge.
+- ⏳ Not built: real incidents, dependency-order enforcement, team notifications. Not verified: real Gemini output for the nested schema.
+
+**Reviews (`event.md` §24):**
+- ✅ `create_review` only for completed bookings, one per booking+direction, conflict-of-interest and role checks, provider→organizer behind a platform setting (default off, admin-only, audited); verified status derived, not claimable.
+- ✅ Public summaries/lists from SQL (published + booking still completed; empty history → "No reviews yet"; invisible provider → no rows); responses; reports/disputes; admin hide/restore and report resolution.
+- ✅ UI: `/app/reviews`, `/app/admin/reviews`, Reviews card on provider pages. ⏳ Not built: edit/delete, review window, notifications, ratings in search ranking.
+
+### Migration status
+| Migration | PGlite (tests) | Real Supabase |
+|---|---|---|
+| `…0001`–`…0004`, `20261022000001`–`…0007` | ✅ | ⏳ never |
+| `20261022000008_recovery.sql` | ✅ (tested this session; created by the interrupted one) | ⏳ never |
+| `20261022000009_reviews.sql` | ✅ (new) | ⏳ never |
+
+### Command results (2026-10-22, this session)
+| Command | Result |
+|---|---|
+| `npm run verify` (start) | ❌ `format:check` (2 files); lint, typecheck ✅; `npm test` ✅ 38 files / 540 tests (before any change) |
+| `prettier --write` on the playbook JSON and `recovery/schemas.ts` | ✅ whitespace only |
+| `vitest run --project db tests/db/recovery.test.ts` | 1st: 5 failed + 3 suites (fixture mistakes: `input_hash` must be hex; invalid provider category; blocked-task status change) → fixed → ✅ 32 |
+| Mutation check on 0008 (impact membership, payload re-check, skip→apply) | 7 DB tests failed; restored (byte-identical backup) → ✅ 32 |
+| `vitest run tests/unit/recovery` | ✅ 46 (30 rules + 16 service); mutation: validation disabled in the service → 2 failed; restored ✅ |
+| `vitest run --project db tests/db/reviews.test.ts` | 1st: 10 failed (real SQL bug: an aggregate without GROUP BY returns one row even when "not visible"; the rest cascaded from it) → functions rewritten → ✅ 35, then ✅ 36 with `my_reviews` |
+| Mutation checks on 0009 (completion, provider-side conflict, platform policy, `published` filter), each alone | each failed ≥ 4 tests; restored → ✅ 36 |
+| `vitest run tests/unit/reviews tests/unit/shell` | ✅ 49 (16 + 13 reviews, shell/nav updated for 2 new items) |
+| `npm run verify` (1st) | ❌ 5 unit failures: comms fixtures lacked the new `recovery_plan_id` column → fixtures updated |
+| `npm run verify` (final) | ✅ exit 0: lint, typecheck, format, **44 files / 685 tests (405 unit + 280 db)**, build (new routes `◐ /app/events/[eventId]/incidents[/[incidentId]]`, `/app/reviews`, `/app/admin/reviews`) |
+| Smoke, `next start` on port 3917, no Supabase env | ✅ the 5 new/changed `/app/**` routes → 307 `/sign-in?next=…` (target kept); `/` 200; server stopped afterwards |
+| Real Gemini / live Supabase / browser | ⏳ **not run** |
+
 ## Implementation phases
 | Phase | Status |
 |---|---|
 | P0 Scaffold & tooling | 🚧 mostly done (see Phase 2 above); remaining items move to the start of P1 |
 | P1 DB, auth, RLS, audit | 🚧 built + locally tested; live Supabase verification pending |
-| P2 Events & interview | 🚧 minimal events only (create/list/detail); interview ⏳ |
-| P3 AI adapter & plan | ⏳ |
-| P4 Tasks & dependencies | ⏳ |
-| P5 Compliance | ⏳ |
-| P6 Attendees & applications | ⏳ |
-| P7 Communications & approvals | ⏳ |
-| P8 Incidents & re-plan | ⏳ |
+| P2 Events & interview | 🚧 built + locally tested (incl. edit/status); `/api/events/**` ⏳ |
+| P3 AI adapter & plan | 🚧 built + locally tested (mock + fakes); real Gemini smoke test pending a key |
+| P4 Tasks & dependencies | 🚧 built + locally tested; live Supabase pending |
+| P5 Compliance | 🚧 built + locally tested (compliance checks, curated unverified sources, simulated submissions) |
+| P6 Attendees & applications | 🚧 built + locally tested (concurrency only serialized) |
+| P7 Communications & approvals | 🚧 built + locally tested (mock email; Resend untested live) |
+| P8 Incidents & re-plan | 🚧 built + locally tested (simulated venue cancellation only; real Gemini output untested) |
 | P9 Providers & marketplace | 🚧 built + locally tested |
-| P10 Quotes, bookings, reviews | 🚧 requests + quotes built + locally tested; bookings/reviews ⏳ |
+| P10 Quotes, bookings, reviews | 🚧 requests, quotes, bookings and reviews built + locally tested |
 | P11 Seed, e2e, demo | ⏳ |
 
 ## Known conflicts / deviations from the source report
 See `docs/SESSION_HANDOFF.md` §Conflicts.
+
+## Phase 10 — Integrations, security & reliability (brief "Phase 9"), 2026-10-22 🚧
+Tested locally only. No live Supabase, **no real Gemini/Resend/Open-Meteo request**. No new dependencies. Already existing and not redone: Gemini adapter + mock, Resend + mock email, AI quota fallback, SQL hourly cap, RLS/anon tests, seed (fixed UUIDs, `is_demo`).
+- ✅ `src/lib/integrations/{provenance,weather,places,sources,calendar}`: provider interfaces, deterministic mocks, Open-Meteo live adapter (only optional live integration), `boundedJson`.
+- ✅ Security headers/CSP, 256 kb action body limit, per-user AI burst limiter, `instrumentation.ts` env check (fails in production, warns in dev), guarded `db:reset`.
+- ✅ Tests: `tests/unit/integrations/providers.test.ts`, `tests/unit/security/static.test.ts`; `resetRateLimits()` added after the new limiter broke 9 existing AI/recovery tests (shared in-memory state).
+- Documented in `event.md` §25 (mocked integrations, credentials, remaining limitations).
+- Result: `npm run verify` ✅ lint, typecheck, format, 46 files / 703 tests, build. `next start` smoke: CSP, X-Frame-Options, nosniff, HSTS present; `x-powered-by` absent.
+- ⏳ Not done: UI for weather/places, real source retrieval, Google Places adapter, durable (DB) rate limiting, a browser/live walkthrough.
