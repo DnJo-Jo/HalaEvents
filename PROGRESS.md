@@ -340,3 +340,5 @@ Tested locally only. No live Supabase, **no real Gemini/Resend/Open-Meteo reques
 - ✅ Local Supabase `enable_confirmations = false` (sign-up signs in and goes straight to onboarding; no inbox step). Hosted projects must turn confirmations back ON (event.md §14.1). Sign-up form no longer promises a confirmation email.
 - ✅ Live marketplace chain verified (provider -> admin verify -> shortlist -> request -> quote). Fixed shortlist permission bug (upsert vs column grants) + regression test. `npm run verify` ✅ (711 tests).
 - ✅ Gemini plan overview (summary/requirements/missing info/budget estimates/risks) + case-insensitive AI_PROVIDER + migration 0010; mock-tested only, no live Gemini call. `npm run verify` ✅ (715 tests).
+
+- ✅ 2026-10-23: Gemini audit; static log test allow-lists `gemini.ts` warn. lint/typecheck/test:unit/format ✅; live Gemini still ⏳.

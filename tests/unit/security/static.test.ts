@@ -93,6 +93,7 @@ describe("static security checks (regression guards, not a security guarantee)",
     expect(logs).toEqual([
       "src/components/error-panel.tsx",
       "src/instrumentation.ts",
+      "src/lib/ai/gemini.ts",
       "src/lib/ai/log.ts",
     ]);
   });

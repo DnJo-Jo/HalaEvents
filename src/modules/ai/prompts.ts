@@ -54,7 +54,7 @@ Rules:
 - proposedOwner: a role such as "Venue lead", never a person's name.
 - evidenceIds: only ids from the evidence list; leave empty when none applies.
 - confidence: "low" when the task depends on information you don't have; explain in uncertainty.
-- At most 40 tasks.
+- At most 40 tasks. Keep every list short: assumptions ≤ 8, requirements ≤ 10, missingInformation ≤ 10, budgetCategories ≤ 12, risks ≤ 10, evidenceIds ≤ 6, requiredInfo ≤ 5, dependsOn ≤ 10 per task.
 Also return the proposal overview:
 - summary: 2–4 sentences describing the event as planned. requirements: what the event needs (venue, staffing, equipment, permissions to check).
 - missingInformation: facts you lack that would change the plan (don't repeat answered questions). assumptions: what you assumed.

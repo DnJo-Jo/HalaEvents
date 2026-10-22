@@ -41,6 +41,7 @@ const ErrorBody = z.object({
   error: z.object({
     code: z.number().optional(),
     status: z.string().optional(),
+    message: z.string().optional(),
     details: z
       .array(
         z.object({ "@type": z.string().optional(), retryDelay: z.string().optional() }).loose(),
@@ -79,6 +80,9 @@ export function createGeminiProvider(opts: GeminiOptions): AiProvider {
               responseJsonSchema: toGeminiSchema(req.jsonSchema),
               temperature: req.temperature,
               maxOutputTokens: req.maxOutputTokens,
+              // Gemini 3.x spends output tokens on hidden thinking (1.3k for a tiny plan, verified live);
+              // planning here is structured filling, so keep it low. Not valid for 2.x models.
+              ...(model.startsWith("gemini-3") ? { thinkingConfig: { thinkingLevel: "low" } } : {}),
             },
           }),
           signal: req.signal,
@@ -129,6 +133,8 @@ export function createGeminiProvider(opts: GeminiOptions): AiProvider {
 /**
  * Gemini accepts a subset of JSON Schema. Keep only widely supported keywords; everything removed
  * here (patterns, length limits, additionalProperties) is still enforced by Zod on the response.
+ * minItems/maxItems are dropped too: Gemini 3.x answers 400 INVALID_ARGUMENT for the plan schema
+ * with them (verified live 2026-10-22); the prompt states the array limits instead.
  */
 const SCHEMA_KEYS = new Set([
   "type",
@@ -136,8 +142,6 @@ const SCHEMA_KEYS = new Set([
   "description",
   "enum",
   "items",
-  "minItems",
-  "maxItems",
   "minimum",
   "maximum",
   "anyOf",
@@ -164,6 +168,14 @@ function mapHttpError(status: number, raw: unknown): ProviderResult {
     ? err.data.error.details?.find((d) => d.retryDelay)?.retryDelay
     : undefined;
   const seconds = retryDelay ? Number.parseFloat(retryDelay) : NaN;
+  // Google's own error text (never contains the key) goes to the server log only, for diagnosis.
+  console.warn(
+    JSON.stringify({
+      msg: "gemini_http_error",
+      status,
+      error: err.success ? (err.data.error.message ?? "").slice(0, 300) : undefined,
+    }),
+  );
   switch (true) {
     case status === 429:
       return {

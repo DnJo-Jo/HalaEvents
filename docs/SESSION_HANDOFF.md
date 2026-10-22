@@ -1,5 +1,10 @@
 # Session Handoff
 
+## Last session: 2026-10-23 — Gemini workflow audit
+- Found the workflow already complete (see next entry); only change: allow-listed the new `console.warn` in `src/lib/ai/gemini.ts` (logs Google's truncated error text, never the key) in `tests/unit/security/static.test.ts`. Uncommitted earlier edits (Gemini 3.x low thinking, no min/maxItems in schema, list limits in prompt) kept.
+- Checks run: lint, typecheck, `test:unit` (434 pass), format:check. Build/db tests not re-run. **No live Gemini call.**
+- Live test: `npm run test:ai-live` (one deliberate call).
+
 ## Last session: 2026-10-22 — Gemini plan proposal (overview) + config
 - Existing pipeline reused (`src/modules/ai/*`, `src/lib/ai/gemini.ts`; one request per explicit "Generate plan" click, burst limiter, no auto-retry on quota, Zod-validated output, mock provider untouched). Added the missing proposal parts: `PlanOverview` (summary, requirements, missing information, budget categories as unverified estimates, risks) in `schemas.ts`, prompt text, URL check in `rules.ts`, playbook fallback fills it without estimates; stored via new migration `20261022000010_plan_overview.sql` (`ai_plans.overview` + `set_ai_plan_overview`, manager-only) and shown on the plan page with a schedule list; tasks are then dismissed/revised/accepted as before.
 - Config: `AI_PROVIDER` is now case-insensitive (`.env.local` had `GEMINI`, which failed validation); `GEMINI_MODEL` was empty and was set to `gemini-2.5-flash` (the id used in `.env.example`; NOT verified as still served — check on the first live call). Key presence only checked, never printed.

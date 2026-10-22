@@ -156,6 +156,18 @@ describe("Gemini REST adapter", () => {
     expect(f.calls[1].body.contents).toHaveLength(3); // prompt, previous answer, repair request
   });
 
+  it("asks Gemini 3.x models for low thinking and leaves other models alone", async () => {
+    for (const [model, expected] of [
+      ["gemini-3.5-flash", { thinkingLevel: "low" }],
+      ["gemini-2.5-flash", undefined],
+    ] as const) {
+      const f = fakeFetch(() => answer("{}"));
+      await createGeminiProvider({ apiKey: KEY, model, fetchImpl: f.fn }).generate(req());
+      const config = f.calls[0].body.generationConfig as { thinkingConfig?: unknown };
+      expect(config.thinkingConfig).toEqual(expected);
+    }
+  });
+
   it("schema sanitizer keeps nested structure", () => {
     expect(
       toGeminiSchema({
@@ -166,7 +178,6 @@ describe("Gemini REST adapter", () => {
     ).toEqual({
       type: "array",
       items: { anyOf: [{ type: "string" }, { type: "number" }] },
-      maxItems: 2,
-    });
+    }); // maxItems dropped: Gemini 3.x rejects it with 400
   });
 });
