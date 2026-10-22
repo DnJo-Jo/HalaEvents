@@ -15,12 +15,13 @@ export async function createSupabaseServerClient() {
   if (!config) throw new AppError("not_configured", "Supabase is not configured.");
   const cookieStore = await cookies();
   return createServerClient(config.url, config.key, {
+    // httpOnly: the app has no browser Supabase client, so scripts never need to read the session.
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll(cookiesToSet) {
         try {
           for (const { name, value, options } of cookiesToSet)
-            cookieStore.set(name, value, options);
+            cookieStore.set(name, value, { ...options, httpOnly: true });
         } catch {
           // Called from a Server Component, where cookies are read-only. src/proxy.ts refreshes
           // the session on every request, so nothing is lost.

@@ -39,10 +39,41 @@ export const TaskProposal = z.object({
 });
 export type TaskProposal = z.infer<typeof TaskProposal>;
 
-export const PlanOutput = z.object({
-  tasks: z.array(TaskProposal).min(1).max(40),
-  assumptions: z.array(z.string().min(3).max(200)).max(8),
+const Line = z.string().min(3).max(200);
+
+/** The non-task parts of a proposal. Everything here is a suggestion; amounts are unverified estimates. */
+export const PlanOverview = z.object({
+  summary: z.string().min(10).max(600),
+  requirements: z.array(Line).max(10),
+  missingInformation: z.array(Line).max(10),
+  budgetCategories: z
+    .array(
+      z.object({
+        name: z.string().min(2).max(60),
+        /** An estimate in the event's currency; 0 when the model can't estimate. */
+        estimatedAmount: z.number().min(0).max(100_000_000),
+        note: z.string().max(200),
+      }),
+    )
+    .max(12),
+  risks: z
+    .array(
+      z.object({
+        title: z.string().min(3).max(100),
+        mitigation: z.string().min(3).max(200),
+        likelihood: z.enum(["high", "medium", "low"]),
+      }),
+    )
+    .max(10),
 });
+export type PlanOverview = z.infer<typeof PlanOverview>;
+
+export const PlanOutput = z
+  .object({
+    tasks: z.array(TaskProposal).min(1).max(40),
+    assumptions: z.array(z.string().min(3).max(200)).max(8),
+  })
+  .extend(PlanOverview.shape);
 export type PlanOutput = z.infer<typeof PlanOutput>;
 
 export const TaskRevisionOutput = z.object({

@@ -16,8 +16,12 @@ const optional = z.preprocess(
   z.string().trim().min(1).optional(),
 );
 const optionalUrl = z.preprocess((v) => (v === "" ? undefined : v), z.url().optional());
+// Mode names are case-insensitive ("GEMINI" works like "gemini").
 const mode = <T extends readonly [string, ...string[]]>(values: T, fallback: T[number]) =>
-  z.preprocess((v) => (v === "" ? undefined : v), z.enum(values).default(fallback));
+  z.preprocess(
+    (v) => (v === "" ? undefined : typeof v === "string" ? v.trim().toLowerCase() : v),
+    z.enum(values).default(fallback),
+  );
 
 export const ServerEnvSchema = z
   .object({

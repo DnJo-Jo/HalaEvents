@@ -46,6 +46,9 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   poweredByHeader: false,
+  // Dev only: lets the app be opened as http://127.0.0.1:3000 as well as localhost (HMR and server
+  // actions are blocked from unlisted hosts). Auth email links still use NEXT_PUBLIC_APP_URL.
+  allowedDevOrigins: ["127.0.0.1"],
   // Server Action bodies are small text forms: cap them well below an abuse-sized payload.
   experimental: { serverActions: { bodySizeLimit: "256kb" } },
   async headers() {

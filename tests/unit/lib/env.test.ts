@@ -32,6 +32,15 @@ describe("parseServerEnv", () => {
     }
   });
 
+  it("accepts provider names in any case", () => {
+    const env = parseServerEnv({
+      AI_PROVIDER: " GEMINI ",
+      GEMINI_API_KEY: "k",
+      GEMINI_MODEL: "gemini-2.5-flash",
+    });
+    expect(env.AI_PROVIDER).toBe("gemini");
+  });
+
   it("never includes variable values in the error message", () => {
     try {
       parseServerEnv({

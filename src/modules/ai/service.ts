@@ -39,7 +39,7 @@ import {
   validatePlan,
   validateRevision,
 } from "./rules";
-import { FollowUpOutput, PlanOutput, TaskRevisionOutput } from "./schemas";
+import { FollowUpOutput, PlanOutput, type PlanOverview, TaskRevisionOutput } from "./schemas";
 
 /**
  * AI orchestration (event.md §6.2, §17). Every entry point authorizes from the verified session
@@ -195,6 +195,16 @@ export async function runPipeline<T>(
  * answers need an explicit regenerate. If the model fails and there is no plan yet, the
  * deterministic playbook plan is saved instead, clearly labelled as not AI-generated.
  */
+function overviewOf(p: PlanOutput): PlanOverview {
+  return {
+    summary: p.summary,
+    requirements: p.requirements,
+    missingInformation: p.missingInformation,
+    budgetCategories: p.budgetCategories,
+    risks: p.risks,
+  };
+}
+
 export async function generatePlan(
   eventId: string,
   opts: { regenerate: boolean },
@@ -258,6 +268,7 @@ export async function generatePlan(
       inputHash: hash,
       playbook: playbookRef,
       assumptions: result.data.assumptions,
+      overview: overviewOf(result.data),
       tasks: resolvePlan(result.data.tasks, pctx),
     });
     return {
@@ -277,6 +288,7 @@ export async function generatePlan(
     inputHash: hash,
     playbook: playbookRef,
     assumptions: deterministic.assumptions,
+    overview: overviewOf(deterministic),
     tasks: resolvePlan(deterministic.tasks, pctx),
   });
   return {

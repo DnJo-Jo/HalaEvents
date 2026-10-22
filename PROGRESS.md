@@ -330,3 +330,13 @@ Tested locally only. No live Supabase, **no real Gemini/Resend/Open-Meteo reques
 - Documented in `event.md` §25 (mocked integrations, credentials, remaining limitations).
 - Result: `npm run verify` ✅ lint, typecheck, format, 46 files / 703 tests, build. `next start` smoke: CSP, X-Frame-Options, nosniff, HSTS present; `x-powered-by` absent.
 - ⏳ Not done: UI for weather/places, real source retrieval, Google Places adapter, durable (DB) rate limiting, a browser/live walkthrough.
+
+## Phase 11 start — Docker Supabase connected (2026-10-22) 🚧
+- ✅ Local Supabase (Docker) running; 13 migrations applied; `.env.local` created (public values only).
+- ✅ Live checks: anon denied on `events` (401), sign-up + confirmation mail in Mailpit, `db lint` (1 benign warning), `db:types` -> `src/lib/db/types.gen.ts`, `typecheck` passes.
+- ⏳ Browser click-through, switching repos to generated types.
+- ✅ Password reset flow + httpOnly auth cookies + recovery email template; 5 new unit tests; live-tested on Docker Supabase; `npm run verify` ✅ (708 tests, build).
+- ✅ Dev-origin fix: opening the app at `127.0.0.1` (or another host) made Next dev block HMR/actions, so forms posted without JS and `cookies()` threw an InvariantError. `allowedDevOrigins: ["127.0.0.1"]` added in `next.config.ts`. Use `http://localhost:3000` (matches `NEXT_PUBLIC_APP_URL`; email links redirect there). Don't run `npm run build`/`verify` while `next dev` is running (shared `.next`).
+- ✅ Local Supabase `enable_confirmations = false` (sign-up signs in and goes straight to onboarding; no inbox step). Hosted projects must turn confirmations back ON (event.md §14.1). Sign-up form no longer promises a confirmation email.
+- ✅ Live marketplace chain verified (provider -> admin verify -> shortlist -> request -> quote). Fixed shortlist permission bug (upsert vs column grants) + regression test. `npm run verify` ✅ (711 tests).
+- ✅ Gemini plan overview (summary/requirements/missing info/budget estimates/risks) + case-insensitive AI_PROVIDER + migration 0010; mock-tested only, no live Gemini call. `npm run verify` ✅ (715 tests).

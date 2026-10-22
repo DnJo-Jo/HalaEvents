@@ -46,6 +46,8 @@ export function authErrorMessage(error: AuthErrorLike): string {
       return "Please confirm your email address first. Check your inbox for the link.";
     case "weak_password":
       return "Choose a stronger password: at least 8 characters with letters and numbers.";
+    case "same_password":
+      return "Choose a password you haven't used before for this account.";
     case "over_request_rate_limit":
     case "over_email_send_rate_limit":
       return "Too many attempts. Please wait a minute and try again.";

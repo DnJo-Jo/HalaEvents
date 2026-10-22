@@ -179,8 +179,8 @@ export default async function RequestPage({ params }: { params: Promise<{ reques
               </TBody>
             </Table>
             <p className="text-xs text-ink-muted">
-              Sorted by live quotes first, then price. Accepting a quote and booking (with provider
-              confirmation and your approval) arrive in P10 — nothing here books a provider.
+              Sorted by live quotes first, then price. Proposing a booking needs your approval and
+              the provider&rsquo;s confirmation — nothing here books a provider by itself.
             </p>
           </>
         )}

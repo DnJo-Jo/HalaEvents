@@ -69,9 +69,18 @@ function scripted(results: ProviderResult[]): AiProvider {
     },
   };
 }
+const OVERVIEW = {
+  summary: "A two-day hackathon for students.",
+  requirements: ["A venue with Wi-Fi"],
+  missingInformation: [],
+  budgetCategories: [{ name: "Venue", estimatedAmount: 5000, note: "Estimate" }],
+  risks: [{ title: "Low turnout", mitigation: "Promote early", likelihood: "medium" }],
+};
 const ok = (data: unknown): ProviderResult => ({
   ok: true,
-  text: JSON.stringify(data),
+  text: JSON.stringify(
+    data && typeof data === "object" && "tasks" in data ? { ...OVERVIEW, ...data } : data,
+  ),
   model: "gemini-test-001",
   usage: { inputTokens: 900, outputTokens: 300 },
 });
@@ -129,6 +138,7 @@ function setup(
   state.tables.ai_runs = [];
   state.rpc.start_ai_run = { data: "run-1" };
   state.rpc.save_ai_plan = { data: "plan-1" };
+  state.rpc.set_ai_plan_overview = { data: null };
   state.rpc.save_ai_followups = { data: 2 };
 }
 
@@ -218,6 +228,10 @@ describe("plan generation", () => {
       p_input_tokens: 900,
       p_output_tokens: 300,
       p_attempts: 1,
+    });
+    expect(rpc("set_ai_plan_overview")[0]).toMatchObject({
+      p_plan_id: "plan-1",
+      p_overview: { summary: OVERVIEW.summary, budgetCategories: OVERVIEW.budgetCategories },
     });
     const saved = rpc("save_ai_plan")[0];
     expect(saved).toMatchObject({

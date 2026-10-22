@@ -72,13 +72,20 @@ export async function addToShortlist(
   providerId: string,
   note?: string,
 ) {
+  // Not .upsert(): its ON CONFLICT DO UPDATE sets every column, but `authenticated` may only update
+  // `note` (column grants, migration 0004), so PostgREST would answer 42501 even for the owner.
   const { error } = await db
     .from("event_shortlists")
-    .upsert(
-      { event_id: eventId, provider_id: providerId, note: note ?? null },
-      { onConflict: "event_id,provider_id" },
-    );
-  if (error) throw fromDbError(error);
+    .insert({ event_id: eventId, provider_id: providerId, note: note ?? null });
+  if (!error) return;
+  if (error.code !== "23505") throw fromDbError(error);
+  // Already shortlisted: only the note can change.
+  const { error: updateError } = await db
+    .from("event_shortlists")
+    .update({ note: note ?? null })
+    .eq("event_id", eventId)
+    .eq("provider_id", providerId);
+  if (updateError) throw fromDbError(updateError);
 }
 
 export async function removeFromShortlist(

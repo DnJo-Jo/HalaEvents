@@ -37,9 +37,6 @@ export function SignUpForm() {
         </FormField>
         <SubmitButton className="w-full">Create account</SubmitButton>
       </form>
-      <p className="text-xs text-ink-muted">
-        We&rsquo;ll email you a link to confirm your address before you can sign in.
-      </p>
     </div>
   );
 }

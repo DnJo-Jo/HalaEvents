@@ -29,6 +29,15 @@ export const SignUpInput = z
 
 export const ResendInput = z.object({ email: Email });
 
+export const ForgotPasswordInput = z.object({ email: Email });
+
+export const ResetPasswordInput = z
+  .object({ password: Password, confirmPassword: z.string() })
+  .refine((v) => v.password === v.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Passwords don't match.",
+  });
+
 export const EmailOtpType = z.enum([
   "email",
   "signup",

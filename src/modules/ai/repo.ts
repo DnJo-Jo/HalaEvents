@@ -4,7 +4,14 @@ import type { SupabaseServerClient } from "@/lib/db/server";
 import { fromDbError } from "@/lib/errors";
 import type { AiPipeline } from "@/lib/ai/types";
 import type { Question } from "./playbook";
-import { AiRunStatus, PlanSource, StoredFollowUp, StoredTask, SuggestionStatus } from "./schemas";
+import {
+  AiRunStatus,
+  PlanOverview,
+  PlanSource,
+  StoredFollowUp,
+  StoredTask,
+  SuggestionStatus,
+} from "./schemas";
 
 /** DB access for ai_runs, ai_plans and ai_suggestions. Writes go through the RPCs in migration 0006. */
 
@@ -81,6 +88,7 @@ const PlanRow = z.object({
   source: PlanSource,
   input_hash: z.string(),
   assumptions: z.array(z.string()),
+  overview: PlanOverview.nullish().transform((v) => v ?? null),
   is_mock: z.boolean(),
   created_at: z.string(),
   ai_run_id: z.string().nullable(),
@@ -111,7 +119,7 @@ export async function getCurrentPlan(
 ): Promise<{ plan: PlanRow; tasks: PlanTask[] } | null> {
   const { data, error } = await db
     .from("ai_plans")
-    .select("id, source, input_hash, assumptions, is_mock, created_at, ai_run_id")
+    .select("id, source, input_hash, assumptions, overview, is_mock, created_at, ai_run_id")
     .eq("event_id", eventId)
     .eq("status", "current")
     .maybeSingle();
@@ -150,6 +158,7 @@ export async function savePlan(
     inputHash: string;
     playbook: { id: string; version: number };
     assumptions: string[];
+    overview: PlanOverview;
     tasks: StoredTask[];
   },
 ): Promise<string> {
@@ -164,7 +173,10 @@ export async function savePlan(
     p_tasks: p.tasks.map((t) => ({ key: t.tempId, payload: t })),
   });
   if (error) throw fromDbError(error);
-  return z.string().parse(data);
+  const planId = z.string().parse(data);
+  const saved = await db.rpc("set_ai_plan_overview", { p_plan_id: planId, p_overview: p.overview });
+  if (saved.error) throw fromDbError(saved.error);
+  return planId;
 }
 
 export interface FollowUp {

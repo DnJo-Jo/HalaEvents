@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { FormField } from "@/components/ui/form-field";
@@ -28,6 +29,14 @@ export function SignInForm({ next }: { next: string }) {
         <FormField label="Password" error={err?.password?.[0]} required>
           <Input name="password" type="password" autoComplete="current-password" />
         </FormField>
+        <p className="text-right text-sm">
+          <Link
+            href="/forgot-password"
+            className="font-medium text-primary underline-offset-2 hover:underline"
+          >
+            Forgot your password?
+          </Link>
+        </p>
         <SubmitButton className="w-full">Sign in</SubmitButton>
       </form>
       {state.values?.unconfirmed && <ResendConfirmation email={state.values.email ?? ""} />}

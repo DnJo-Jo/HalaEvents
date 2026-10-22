@@ -150,7 +150,18 @@ describe("dates", () => {
 });
 
 describe("validatePlan", () => {
-  const plan = (tasks: TaskProposal[], assumptions: string[] = []) => ({ tasks, assumptions });
+  const overview = {
+    summary: "A two-day hackathon for students.",
+    requirements: [],
+    missingInformation: [],
+    budgetCategories: [],
+    risks: [],
+  };
+  const plan = (tasks: TaskProposal[], assumptions: string[] = []) => ({
+    ...overview,
+    tasks,
+    assumptions,
+  });
 
   it("accepts a well-formed plan", () => {
     expect(
@@ -223,6 +234,21 @@ describe("validatePlan", () => {
         .success,
     ).toBe(false);
     expect(PlanOutput.safeParse({ tasks: [], assumptions: [] }).success).toBe(false);
+  });
+
+  it("rejects URLs in the overview and accepts a complete one", () => {
+    expect(
+      validatePlan({ ...plan([task()]), summary: "See https://x.example for details" }, ctx).join(),
+    ).toMatch(/overview/);
+    expect(
+      validatePlan(
+        {
+          ...plan([task()]),
+          budgetCategories: [{ name: "Venue", estimatedAmount: 5000, note: "estimate" }],
+        },
+        ctx,
+      ),
+    ).toEqual([]);
   });
 });
 

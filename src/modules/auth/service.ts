@@ -54,6 +54,29 @@ export async function resendConfirmation(email: string): Promise<AuthResult> {
   return error ? { ok: false, code: error.code, message: authErrorMessage(error) } : { ok: true };
 }
 
+/**
+ * Sends the password-reset email. Callers show the same message whether or not the address has an
+ * account, so only rate-limit style failures are surfaced.
+ */
+export async function requestPasswordReset(email: string): Promise<AuthResult> {
+  if (!getSupabaseConfig()) return NOT_CONFIGURED;
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: confirmUrl("/reset-password"),
+  });
+  return error ? { ok: false, code: error.code, message: authErrorMessage(error) } : { ok: true };
+}
+
+/** Sets a new password for the signed-in (recovery) session and ends the user's other sessions. */
+export async function updatePassword(password: string): Promise<AuthResult> {
+  if (!getSupabaseConfig()) return NOT_CONFIGURED;
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { ok: false, code: error.code, message: authErrorMessage(error) };
+  await supabase.auth.signOut({ scope: "others" });
+  return { ok: true };
+}
+
 export async function signOut(): Promise<void> {
   if (!getSupabaseConfig()) return;
   const supabase = await createSupabaseServerClient();

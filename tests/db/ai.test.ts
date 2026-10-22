@@ -405,3 +405,29 @@ describe("event state", () => {
     ).toEqual([]);
   });
 });
+
+describe("plan overview", () => {
+  const OVERVIEW = JSON.stringify({ summary: "A hackathon.", risks: [] });
+  const SET = "select public.set_ai_plan_overview($1, $2::jsonb)";
+
+  it("is written by event managers only and readable by members", async () => {
+    const run = await succeededRun(owner);
+    const [{ id }] = await savePlan(owner, run, "ai", [task("t_overview")]);
+    await expect(db.user(viewer).query(SET, [id, OVERVIEW])).rejects.toThrow();
+    await expect(db.user(outsider).query(SET, [id, OVERVIEW])).rejects.toThrow();
+    await db.user(owner).query(SET, [id, OVERVIEW]);
+    const rows = await db
+      .user(owner)
+      .query<{ overview: { summary: string } }>(
+        "select overview from public.ai_plans where id = $1",
+        [id],
+      );
+    expect(rows[0]?.overview.summary).toBe("A hackathon.");
+  });
+
+  it("rejects a non-object overview", async () => {
+    const run = await succeededRun(owner);
+    const [{ id }] = await savePlan(owner, run, "ai", [task("t_overview2")]);
+    await expect(db.user(owner).query(SET, [id, "[]"])).rejects.toThrow();
+  });
+});

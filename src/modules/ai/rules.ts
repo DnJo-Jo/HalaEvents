@@ -99,6 +99,15 @@ export function validatePlan(plan: PlanOutput, ctx: PlanContext): string[] {
   if (cycle) errors.push(`dependsOn: dependency cycle ${cycle.join(" → ")}.`);
   if (plan.assumptions.some((a) => URL_LIKE.test(a)))
     errors.push("assumptions: don't include URLs.");
+  const overviewText = [
+    plan.summary,
+    ...plan.requirements,
+    ...plan.missingInformation,
+    ...plan.budgetCategories.flatMap((b) => [b.name, b.note]),
+    ...plan.risks.flatMap((r) => [r.title, r.mitigation]),
+  ];
+  if (overviewText.some((x) => URL_LIKE.test(x)))
+    errors.push("overview: don't include URLs or web addresses.");
   return errors;
 }
 
@@ -158,7 +167,10 @@ export function validateRevision(
   ctx: PlanContext,
 ): string[] {
   if (revised.tempId !== original.tempId) return [`task.tempId must stay "${original.tempId}".`];
-  const errors = validatePlan({ tasks: [...others, revised], assumptions: [] }, ctx);
+  const errors = validatePlan(
+    { ...EMPTY_OVERVIEW, tasks: [...others, revised], assumptions: [] },
+    ctx,
+  );
   return errors.map((e) => e.replace(/^tasks\[\d+\] \(([^)]+)\)/, "task ($1)"));
 }
 
@@ -204,6 +216,14 @@ export function evidenceCatalog(
   return ev;
 }
 
+const EMPTY_OVERVIEW = {
+  summary: "Revised task.",
+  requirements: [],
+  missingInformation: [],
+  budgetCategories: [],
+  risks: [],
+};
+
 /** The plan built from the playbook alone: the mock provider's output and the no-AI fallback. */
 export function playbookPlan(
   playbook: Playbook,
@@ -213,7 +233,17 @@ export function playbookPlan(
   const templates = playbook.taskTemplates.filter((t) => conditionsHold(t.when, ctx));
   const keys = new Set(templates.map((t) => t.key));
   const questionText = new Map(playbook.questions.map((q) => [q.key, q.text]));
+  const risks = playbook.riskCategories.filter((r) => conditionsHold(r.when, ctx));
   return {
+    summary: "Plan built from the HalaEvents playbook and your interview answers, without AI.",
+    requirements: [],
+    missingInformation: [],
+    budgetCategories: [],
+    risks: risks.slice(0, 10).map((r) => ({
+      title: r.label.slice(0, 100),
+      mitigation: "Review the related tasks and checks in this plan.",
+      likelihood: "medium" as const,
+    })),
     tasks: templates.map((t) => ({
       tempId: t.key,
       title: t.title,

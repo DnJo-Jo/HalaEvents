@@ -54,7 +54,12 @@ Rules:
 - proposedOwner: a role such as "Venue lead", never a person's name.
 - evidenceIds: only ids from the evidence list; leave empty when none applies.
 - confidence: "low" when the task depends on information you don't have; explain in uncertainty.
-- At most 40 tasks.`;
+- At most 40 tasks.
+Also return the proposal overview:
+- summary: 2–4 sentences describing the event as planned. requirements: what the event needs (venue, staffing, equipment, permissions to check).
+- missingInformation: facts you lack that would change the plan (don't repeat answered questions). assumptions: what you assumed.
+- budgetCategories: spending categories with a rough estimatedAmount in the event's currency, or 0 when you cannot estimate. These are unverified estimates, not quotes; say so in note when relevant. Keep the total within the stated budget when one is given.
+- risks: practical risks with a short mitigation and likelihood.`;
 
 export function planPrompt(
   event: EventRow,

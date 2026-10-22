@@ -154,6 +154,56 @@ export default async function PlanPage({ params }: { params: Promise<{ eventId: 
               </span>
             </ActionForm>
           )}
+          {current.plan.overview && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Proposal overview</CardTitle>
+                <CardDescription>
+                  {current.plan.source === "ai"
+                    ? current.plan.is_mock
+                      ? "Offline mock data for development. Not a real suggestion."
+                      : "Suggested by AI. Amounts are unverified estimates, not quotes."
+                    : "Built from the playbook. No budget estimates were made."}
+                </CardDescription>
+              </CardHeader>
+              <CardBody className="space-y-4 text-sm">
+                <p>{current.plan.overview.summary}</p>
+                <OverviewList title="Requirements" items={current.plan.overview.requirements} />
+                <OverviewList
+                  title="Missing information"
+                  items={current.plan.overview.missingInformation}
+                />
+                {current.plan.overview.budgetCategories.length > 0 && (
+                  <div>
+                    <h3 className="mb-1 font-medium">Budget categories (estimate, unverified)</h3>
+                    <ul className="list-disc space-y-1 pl-5">
+                      {current.plan.overview.budgetCategories.map((b, i) => (
+                        <li key={i}>
+                          {b.name}:{" "}
+                          {b.estimatedAmount > 0
+                            ? `about ${b.estimatedAmount.toLocaleString("en-US")} ${event.currency}`
+                            : "not estimated"}
+                          {b.note ? ` — ${b.note}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <OverviewList
+                  title="Risks"
+                  items={current.plan.overview.risks.map(
+                    (r) => `${r.title} (${r.likelihood}) — ${r.mitigation}`,
+                  )}
+                />
+                <OverviewList
+                  title="Schedule (proposed deadlines)"
+                  items={current.tasks.map(
+                    (t) => `${formatDate(t.task.dueDate)} — ${t.task.title}`,
+                  )}
+                />
+              </CardBody>
+            </Card>
+          )}
           {current.plan.assumptions.length > 0 && (
             <Card>
               <CardHeader>
@@ -281,6 +331,20 @@ export default async function PlanPage({ params }: { params: Promise<{ eventId: 
           Back to the planning interview
         </ButtonLink>
       </p>
+    </div>
+  );
+}
+
+function OverviewList({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <h3 className="mb-1 font-medium">{title}</h3>
+      <ul className="list-disc space-y-1 pl-5">
+        {items.map((x, i) => (
+          <li key={i}>{x}</li>
+        ))}
+      </ul>
     </div>
   );
 }
