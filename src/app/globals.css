@@ -1,0 +1,180 @@
+@import "tailwindcss";
+
+/*
+ * HalaEvents design tokens (event.md §13).
+ * Raw values live in :root and are swapped for dark mode; Tailwind utilities read them
+ * through @theme inline, so components never need `dark:` variants for color.
+ * Contrast targets: body text ≥ 7:1, muted text ≥ 4.5:1, UI borders/focus ≥ 3:1.
+ */
+:root {
+  color-scheme: light;
+  --canvas: #faf8f5;
+  --surface: #ffffff;
+  --surface-muted: #f3efe9;
+  --line: #e4ddd3;
+  --line-strong: #8c8170;
+  --ink: #1b1f24;
+  --ink-muted: #545d69;
+  --primary: #0f5c5a;
+  --primary-hover: #0b4947;
+  --primary-ink: #ffffff;
+  --primary-soft: #e3f0ee;
+  --accent: #9a5222;
+  --accent-soft: #f7ebe0;
+  --success: #1e6b3a;
+  --success-soft: #e4f2e8;
+  --warning: #8a5300;
+  --warning-soft: #fbf0dc;
+  --danger: #b42318;
+  --danger-hover: #932015;
+  --danger-ink: #ffffff;
+  --danger-soft: #fdecea;
+  --info: #1d4f91;
+  --info-soft: #e6eef9;
+  --ring: #0f5c5a;
+  --backdrop: rgb(15 19 22 / 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --canvas: #0f1316;
+    --surface: #161b20;
+    --surface-muted: #1d242a;
+    --line: #2a333b;
+    --line-strong: #66737f;
+    --ink: #eceef0;
+    --ink-muted: #a3adb8;
+    --primary: #4fb8af;
+    --primary-hover: #6fcac2;
+    --primary-ink: #062624;
+    --primary-soft: #12302e;
+    --accent: #e0a06a;
+    --accent-soft: #2e2016;
+    --success: #6fcf8e;
+    --success-soft: #13291b;
+    --warning: #f2b65a;
+    --warning-soft: #2e2312;
+    --danger: #f28b82;
+    --danger-hover: #f6a7a0;
+    --danger-ink: #1f0a08;
+    --danger-soft: #3a1714;
+    --info: #8db4f2;
+    --info-soft: #142238;
+    --ring: #6fcac2;
+    --backdrop: rgb(0 0 0 / 0.6);
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-ink: var(--primary-ink);
+  --color-primary-soft: var(--primary-soft);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-ink: var(--danger-ink);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-ring: var(--ring);
+  --color-backdrop: var(--backdrop);
+}
+
+@theme {
+  /* System font stack: no build-time font download, works offline for the demo. */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Arabic",
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.25rem;
+
+  --shadow-xs: 0 1px 2px rgb(16 24 32 / 0.05);
+  --shadow-sm: 0 1px 3px rgb(16 24 32 / 0.08), 0 1px 2px rgb(16 24 32 / 0.04);
+  --shadow-md: 0 6px 16px -4px rgb(16 24 32 / 0.1), 0 2px 4px rgb(16 24 32 / 0.05);
+  --shadow-lg: 0 18px 40px -12px rgb(16 24 32 / 0.22);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-fade-in: fade-in 200ms var(--ease-out-soft) both;
+  --animate-rise: rise 280ms var(--ease-out-soft) both;
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes shimmer {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-canvas font-sans text-ink antialiased;
+  }
+  /* One visible focus style everywhere; mouse clicks don't show it. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  ::selection {
+    background: var(--primary-soft);
+    color: var(--ink);
+  }
+  dialog::backdrop {
+    background: var(--backdrop);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
