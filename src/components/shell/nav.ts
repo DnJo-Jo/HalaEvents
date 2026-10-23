@@ -38,7 +38,7 @@ export const appNav: NavItem[] = [
     planned: [
       "Event profile: type, venue, dates, timezone, capacity, budget",
       "Adaptive interview driven by the university-hackathon playbook",
-      "AI plan suggestions you accept or reject one by one",
+      "Plan suggestions you accept or reject one by one",
     ],
   },
   {

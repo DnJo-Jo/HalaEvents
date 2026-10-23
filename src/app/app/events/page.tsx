@@ -21,7 +21,7 @@ export default async function EventsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Events"
-        description="Events you own or help organize. The adaptive interview and plan generation arrive in P2."
+        description="Events you own or help organize."
         actions={
           isOrganizer ? <ButtonLink href="/app/events/new">New event</ButtonLink> : undefined
         }

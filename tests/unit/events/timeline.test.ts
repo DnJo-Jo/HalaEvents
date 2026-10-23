@@ -24,7 +24,9 @@ describe("timeline sentences", () => {
     expect(
       describeTimelineEntry(e("tasks", "update", { title: "Book hall", owner_changed: true })),
     ).toBe("changed the owner of “Book hall”");
-    expect(describeTimelineEntry(e("ai_plans", "insert", { source: "playbook" }))).toMatch(/no AI/);
+    expect(describeTimelineEntry(e("ai_plans", "insert", { source: "playbook" }))).toMatch(
+      /draft plan/,
+    );
     expect(
       describeTimelineEntry(e("ai_suggestions", "update", { from: "proposed", to: "accepted" })),
     ).toBe("accepted a suggestion");

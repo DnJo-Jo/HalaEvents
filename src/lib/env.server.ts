@@ -16,7 +16,7 @@ const optional = z.preprocess(
   z.string().trim().min(1).optional(),
 );
 const optionalUrl = z.preprocess((v) => (v === "" ? undefined : v), z.url().optional());
-// Mode names are case-insensitive ("GEMINI" works like "gemini").
+// Mode names are case-insensitive ("RESEND" works like "resend").
 const mode = <T extends readonly [string, ...string[]]>(values: T, fallback: T[number]) =>
   z.preprocess(
     (v) => (v === "" ? undefined : typeof v === "string" ? v.trim().toLowerCase() : v),
@@ -31,9 +31,6 @@ export const ServerEnvSchema = z
     NEXT_PUBLIC_SUPABASE_URL: optionalUrl,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: optional,
     SUPABASE_SECRET_KEY: optional,
-    AI_PROVIDER: mode(["mock", "gemini"] as const, "mock"),
-    GEMINI_API_KEY: optional,
-    GEMINI_MODEL: optional,
     EMAIL_PROVIDER: mode(["mock", "resend"] as const, "mock"),
     RESEND_API_KEY: optional,
     EMAIL_FROM: optional,
@@ -49,15 +46,6 @@ export const ServerEnvSchema = z
           ctx.addIssue({ code: "custom", path: [key], message: `required when ${reason}` });
       }
     };
-    need(env.AI_PROVIDER === "gemini", ["GEMINI_API_KEY", "GEMINI_MODEL"], "AI_PROVIDER=gemini");
-    // Same rule as GeminiModelName in src/lib/ai/gemini.ts: the id becomes part of the request path.
-    if (env.GEMINI_MODEL && !/^[a-z0-9][a-z0-9.-]{0,79}$/.test(env.GEMINI_MODEL)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["GEMINI_MODEL"],
-        message: "must be a model id such as gemini-2.5-flash",
-      });
-    }
     need(
       env.EMAIL_PROVIDER === "resend",
       ["RESEND_API_KEY", "EMAIL_FROM"],
@@ -95,7 +83,7 @@ export function parseServerEnv(source: Source = process.env): ServerEnv {
   return result.data;
 }
 
-export type IntegrationName = "ai" | "email" | "weather" | "places";
+export type IntegrationName = "email" | "weather" | "places";
 
 export interface IntegrationStatus {
   name: IntegrationName;
@@ -117,7 +105,6 @@ export function inspectServerEnv(source: Source = process.env): EnvReport {
   const result = ServerEnvSchema.safeParse(source);
   const read = (key: string, fallback: string) => (set(source[key]) ? source[key]! : fallback);
   const modes: Record<IntegrationName, string> = {
-    ai: read("AI_PROVIDER", "mock"),
     email: read("EMAIL_PROVIDER", "mock"),
     weather: read("WEATHER_PROVIDER", "mock"),
     places: read("PLACES_PROVIDER", "mock"),
@@ -140,7 +127,6 @@ export function inspectServerEnv(source: Source = process.env): EnvReport {
 }
 
 const KNOWN_MODES: Record<IntegrationName, string[]> = {
-  ai: ["mock", "gemini"],
   email: ["mock", "resend"],
   weather: ["mock", "open-meteo"],
   places: ["mock", "none", "google"],

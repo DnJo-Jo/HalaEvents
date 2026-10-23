@@ -1,8 +1,8 @@
-import { Badge, MockBadge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input, Textarea } from "@/components/ui/input";
-import type { Question } from "@/modules/ai/playbook";
+import type { Question } from "@/modules/planning/playbook";
 import type { AnswerValue } from "@/modules/events/interview-rules";
 
 const choice =
@@ -17,24 +17,24 @@ export function InterviewQuestion({
   question: q,
   value,
   isNew = false,
-  ai,
+  followUp,
 }: {
   question: Question;
   value?: AnswerValue;
   isNew?: boolean;
   /**
-   * Set for an AI follow-up: labels it and offers "Dismiss". The button submits a separate form
-   * (`form` attribute) so it is never the interview form's default (Enter-key) button.
+   * Set for an optional follow-up question saved earlier: labels it and offers "Dismiss". The
+   * button submits a separate form (`form` attribute) so it is never the interview form's default
+   * (Enter-key) button.
    */
-  ai?: { suggestionId: string; isMock: boolean };
+  followUp?: { suggestionId: string };
 }) {
   const id = `q-${q.key.replaceAll(".", "-")}`;
   const hidden = <input type="hidden" name="round" value={q.key} />;
-  const aiBar = ai && (
+  const followUpBar = followUp && (
     <div className="flex flex-wrap items-center gap-2">
-      <Badge tone="accent">AI suggestion · optional</Badge>
-      {ai.isMock && <MockBadge />}
-      <Button type="submit" form={`dismiss-${ai.suggestionId}`} variant="ghost" size="sm">
+      <Badge tone="accent">Follow-up · optional</Badge>
+      <Button type="submit" form={`dismiss-${followUp.suggestionId}`} variant="ghost" size="sm">
         Dismiss
       </Button>
     </div>
@@ -49,7 +49,7 @@ export function InterviewQuestion({
             <NewBadge />
           </div>
         )}
-        {aiBar}
+        {followUpBar}
         <FormField
           label={q.type === "number" && q.unit ? `${q.text} (${q.unit})` : q.text}
           hint={q.why}
@@ -109,7 +109,7 @@ export function InterviewQuestion({
         {multi && <span className="ml-1 font-normal text-ink-muted">(choose any)</span>}
       </legend>
       {hidden}
-      {aiBar}
+      {followUpBar}
       <p id={`${id}-hint`} className="text-xs text-ink-muted">
         {q.why}
       </p>

@@ -162,3 +162,6 @@ export default async function CompliancePage({ params }: { params: Promise<{ eve
     </div>
   );
 }
+
+/** Data-dependent route behind the app shell Suspense; blocking navigation is intended. */
+export const instant = false;

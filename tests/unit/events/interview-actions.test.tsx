@@ -96,7 +96,7 @@ describe("saveInterviewAction", () => {
         args: {
           p_event_id: EVENT,
           p_playbook_id: "university-hackathon",
-          p_playbook_version: 2,
+          p_playbook_version: 3,
           p_answers: {
             "audience.level": "school_students",
             "format.team_size": 4,

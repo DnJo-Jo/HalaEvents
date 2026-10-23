@@ -288,3 +288,6 @@ export default async function AttendeesPage({ params }: { params: Promise<{ even
     </div>
   );
 }
+
+/** Data-dependent route behind the app shell Suspense; blocking navigation is intended. */
+export const instant = false;

@@ -92,3 +92,6 @@ export default async function AdminProvidersPage({
     </div>
   );
 }
+
+/** Data-dependent route behind the app shell Suspense; blocking navigation is intended. */
+export const instant = false;

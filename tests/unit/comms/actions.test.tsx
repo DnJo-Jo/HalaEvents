@@ -1,6 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AiProvider, ProviderResult } from "@/lib/ai/types";
 import { createMockTransport } from "@/lib/integrations/email/mock";
 import type { EmailTransport } from "@/lib/integrations/email/types";
 import { createFakeState, fakeClient, member, type FakeState } from "../helpers/fake-supabase";
@@ -11,16 +10,11 @@ import { createFakeState, fakeClient, member, type FakeState } from "../helpers/
 
 let state: FakeState;
 let transport: EmailTransport & { outbox?: unknown[] };
-let provider: AiProvider;
 
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(async () => fakeClient(state)),
 }));
 vi.mock("@/lib/integrations/email", () => ({ getEmailTransport: () => transport }));
-vi.mock("@/modules/ai/provider", async (orig) => ({
-  ...(await orig<typeof import("@/modules/ai/provider")>()),
-  getAiProvider: () => provider,
-}));
 vi.mock("next/cache", () => ({ refresh: vi.fn() }));
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "x-forwarded-for": "203.0.113.9" }),
@@ -42,8 +36,6 @@ vi.mock("next/navigation", () => ({
 const comms = await import("@/modules/comms/actions");
 const attendees = await import("@/modules/attendees/actions");
 const bookings = await import("@/modules/bookings/booking-actions");
-const { createMockProvider } = await import("@/lib/ai/mock");
-const { MOCK_FIXTURES } = await import("@/modules/ai/provider");
 
 const EVENT = "11111111-1111-4111-8111-111111111111";
 const MSG = "22222222-2222-4222-8222-222222222222";
@@ -154,7 +146,6 @@ function setup(role: "owner" | "organizer" | "viewer" | null) {
   };
   state.rpc.finish_communication = { data: "sent" };
   state.rpc.communication_recipients = { data: [] };
-  state.rpc.start_ai_run = { data: "run-1" };
   state.rpc.save_communication = { data: MSG };
   state.rpc.register_attendee = { data: "accepted" };
 }
@@ -166,17 +157,9 @@ const fd = (entries: Record<string, string> = {}) => {
 };
 const rpc = (fn: string) =>
   state.rpcCalls.filter((c) => c.fn === fn).map((c) => c.args as Record<string, unknown>);
-const scripted = (results: ProviderResult[]): AiProvider => ({
-  name: "gemini",
-  model: "gemini-test",
-  isMock: false,
-  generate: async () => results.shift() ?? { ok: false, code: "provider_error", message: "none" },
-});
-
 beforeEach(() => {
   state = createFakeState({ sub: "user-1" });
   transport = createMockTransport();
-  provider = createMockProvider(MOCK_FIXTURES);
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://127.0.0.1:54321");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "public-key");
 });
@@ -270,40 +253,52 @@ describe("sending", () => {
   });
 });
 
-describe("AI drafts", () => {
-  it("the mock AI's draft is saved as a draft linked to its run (never sent)", async () => {
+describe("template drafts", () => {
+  it("a template draft is saved as an organizer draft and never sent", async () => {
     setup("owner");
-    const r = await comms.aiDraftAction(
+    const r = await comms.templateDraftAction(
       EVENT,
       {},
       fd({ kind: "reminder", audience: "all_places", attendeeId: "" }),
     );
-    expect(r).toMatchObject({ ok: true, message: expect.stringContaining("mock AI") });
+    expect(r).toMatchObject({ ok: true, message: expect.stringContaining("template") });
     const [save] = rpc("save_communication");
-    expect(save.p_ai_run_id).toBe("run-1");
+    expect(save.p_ai_run_id).toBeNull();
+    expect(save.p_subject).toContain("{{event_name}}");
     expect(save.p_body).toMatch(/\{\{name\}\}/);
     expect(rpc("request_approval")).toEqual([]);
     expect(transport.outbox).toHaveLength(0);
   });
 
-  it("invalid AI output (a link, a fake confirmation) twice → nothing saved", async () => {
+  it("the organizer's extra details are added to the draft", async () => {
     setup("owner");
-    const bad = (body: string): ProviderResult => ({
-      ok: true,
-      text: JSON.stringify({ subject: "Update", body }),
-      model: "m",
-    });
-    provider = scripted([
-      bad("Register at https://evil.example now"),
-      bad("The venue is confirmed and the permit has been approved."),
-    ]);
-    const r = await comms.aiDraftAction(
+    await comms.templateDraftAction(
       EVENT,
       {},
-      fd({ kind: "venue_update", audience: "all_places", attendeeId: "" }),
+      fd({
+        kind: "reminder",
+        audience: "all_places",
+        attendeeId: "",
+        instructions: "Doors open at 8:30, bring a laptop.",
+      }),
     );
-    expect(r.ok).toBe(false);
-    expect(r.message).toMatch(/didn't pass/);
+    expect(rpc("save_communication")[0].p_body).toContain("Doors open at 8:30, bring a laptop.");
+  });
+
+  it("extra details with a link or a false confirmation are refused, nothing is saved", async () => {
+    setup("owner");
+    for (const instructions of [
+      "Register at https://evil.example now",
+      "The venue is confirmed and the permit has been approved.",
+    ]) {
+      const r = await comms.templateDraftAction(
+        EVENT,
+        {},
+        fd({ kind: "venue_update", audience: "all_places", attendeeId: "", instructions }),
+      );
+      expect(r.ok).toBe(false);
+      expect(r.message).toMatch(/can't be used/);
+    }
     expect(rpc("save_communication")).toEqual([]);
   });
 });
@@ -416,7 +411,7 @@ describe("pages", () => {
     state.tables.communications[0].status = "awaiting_approval";
     const { default: Page } = await import("@/app/app/events/[eventId]/messages/page");
     const out = await html(Page({ params: Promise.resolve({ eventId: EVENT }) }));
-    expect(out).toContain("Simulated sending");
+    expect(out).toContain("Test mode: no real emails");
     expect(out).toContain("Exactly what will be sent");
     expect(out).toContain("Exact approved body");
     expect(out).toContain("Approve this exact message");

@@ -73,6 +73,7 @@ export async function createEvent(
     .insert({
       owner_id: ownerId,
       name: e.name,
+      event_type: e.eventType,
       venue_type: e.venueType ?? null,
       location_text: e.locationText ?? null,
       city: e.city ?? null,

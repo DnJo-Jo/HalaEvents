@@ -8,44 +8,48 @@ const SECRET = "sk-test-DO-NOT-LEAK-123";
 describe("parseServerEnv", () => {
   it("defaults every integration to mock with an empty environment", () => {
     const env = parseServerEnv({});
-    expect(env.AI_PROVIDER).toBe("mock");
     expect(env.EMAIL_PROVIDER).toBe("mock");
     expect(env.NEXT_PUBLIC_APP_NAME).toBe("HalaEvents");
   });
 
   it("treats empty strings from .env.example as unset", () => {
-    const env = parseServerEnv({ GEMINI_API_KEY: "", AI_PROVIDER: "" });
-    expect(env.GEMINI_API_KEY).toBeUndefined();
-    expect(env.AI_PROVIDER).toBe("mock");
+    const env = parseServerEnv({ RESEND_API_KEY: "", EMAIL_PROVIDER: "" });
+    expect(env.RESEND_API_KEY).toBeUndefined();
+    expect(env.EMAIL_PROVIDER).toBe("mock");
   });
 
   it("fails with a readable error naming the missing variables (fail fast, no silent mock)", () => {
-    expect(() => parseServerEnv({ AI_PROVIDER: "gemini" })).toThrow(EnvError);
+    expect(() => parseServerEnv({ EMAIL_PROVIDER: "resend" })).toThrow(EnvError);
     try {
-      parseServerEnv({ AI_PROVIDER: "gemini", EMAIL_PROVIDER: "resend" });
+      parseServerEnv({ EMAIL_PROVIDER: "resend", PLACES_PROVIDER: "google" });
     } catch (e) {
       const msg = (e as Error).message;
-      expect(msg).toContain("GEMINI_API_KEY: required when AI_PROVIDER=gemini");
-      expect(msg).toContain("GEMINI_MODEL");
-      expect(msg).toContain("RESEND_API_KEY");
+      expect(msg).toContain("RESEND_API_KEY: required when EMAIL_PROVIDER=resend");
+      expect(msg).toContain("GOOGLE_PLACES_API_KEY");
       expect(msg).toContain(".env.example");
     }
   });
 
   it("accepts provider names in any case", () => {
     const env = parseServerEnv({
-      AI_PROVIDER: " GEMINI ",
-      GEMINI_API_KEY: "k",
-      GEMINI_MODEL: "gemini-2.5-flash",
+      EMAIL_PROVIDER: " RESEND ",
+      RESEND_API_KEY: "k",
+      EMAIL_FROM: "HalaEvents <hello@example.test>",
     });
-    expect(env.AI_PROVIDER).toBe("gemini");
+    expect(env.EMAIL_PROVIDER).toBe("resend");
+  });
+
+  it("ignores variables for removed AI providers instead of requiring them", () => {
+    expect(() =>
+      parseServerEnv({ AI_PROVIDER: "gemini", GEMINI_API_KEY: SECRET, GROQ_API_KEY: SECRET }),
+    ).not.toThrow();
   });
 
   it("never includes variable values in the error message", () => {
     try {
       parseServerEnv({
-        AI_PROVIDER: "gemini",
-        GEMINI_API_KEY: SECRET,
+        EMAIL_PROVIDER: "resend",
+        RESEND_API_KEY: SECRET,
         NEXT_PUBLIC_APP_URL: SECRET,
       });
       expect.unreachable();
@@ -54,17 +58,13 @@ describe("parseServerEnv", () => {
     }
   });
 
-  it("rejects a GEMINI_MODEL that isn't a plain model id (it becomes part of the URL path)", () => {
-    for (const model of ["../v1/files", "gemini flash", "Gemini-2.5"]) {
-      expect(() =>
-        parseServerEnv({ AI_PROVIDER: "gemini", GEMINI_API_KEY: SECRET, GEMINI_MODEL: model }),
-      ).toThrow(/GEMINI_MODEL: must be a model id/);
-    }
-  });
-
   it("accepts a fully configured real setup", () => {
     expect(() =>
-      parseServerEnv({ AI_PROVIDER: "gemini", GEMINI_API_KEY: SECRET, GEMINI_MODEL: "model-x" }),
+      parseServerEnv({
+        EMAIL_PROVIDER: "resend",
+        RESEND_API_KEY: SECRET,
+        EMAIL_FROM: "HalaEvents <hello@example.test>",
+      }),
     ).not.toThrow();
   });
 });
@@ -74,18 +74,18 @@ describe("inspectServerEnv", () => {
     const report = inspectServerEnv({
       SUPABASE_SECRET_KEY: SECRET,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: SECRET,
-      GEMINI_API_KEY: SECRET,
       RESEND_API_KEY: SECRET,
-      AI_PROVIDER: "gemini",
-      GEMINI_MODEL: "model-x",
+      EMAIL_PROVIDER: "resend",
+      EMAIL_FROM: "HalaEvents <hello@example.test>",
     });
     expect(JSON.stringify(report)).not.toContain(SECRET);
     expect(report.supabase.secretKeySet).toBe(true);
-    expect(report.integrations.find((i) => i.name === "ai")).toEqual({
-      name: "ai",
-      mode: "gemini",
+    expect(report.integrations.find((i) => i.name === "email")).toEqual({
+      name: "email",
+      mode: "resend",
       mock: false,
     });
+    expect(report.integrations.map((i) => i.name)).not.toContain("ai");
   });
 
   it("does not echo unknown mode values", () => {

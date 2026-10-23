@@ -81,7 +81,7 @@ export const DraftInput = z
   });
 export type DraftInput = z.infer<typeof DraftInput>;
 
-export const AiDraftInput = z
+export const TemplateDraftInput = z
   .object({
     kind: CommunicationKind,
     audience: Audience,
@@ -93,12 +93,12 @@ export const AiDraftInput = z
     message: "Choose one person for a single-recipient message (and only then).",
   });
 
-/** Model output for the draft_message pipeline (validated before anything is saved). */
-export const MessageDraftOutput = z.object({
+/** A drafted subject and body (validated before anything is saved). */
+export const MessageDraft = z.object({
   subject: z.string().min(3).max(200),
   body: z.string().min(10).max(3000),
 });
-export type MessageDraftOutput = z.infer<typeof MessageDraftOutput>;
+export type MessageDraft = z.infer<typeof MessageDraft>;
 
 export const DecisionInput = z.object({
   decision: z.enum(["approve", "reject"]),

@@ -23,7 +23,9 @@ describe("buildHealthReport", () => {
   });
 
   it("is degraded when a real integration lacks its key", () => {
-    expect(buildHealthReport({ AI_PROVIDER: "gemini", ...supabase }, now).status).toBe("degraded");
+    expect(buildHealthReport({ EMAIL_PROVIDER: "resend", ...supabase }, now).status).toBe(
+      "degraded",
+    );
   });
 
   it("hides details in production", () => {
@@ -37,7 +39,6 @@ describe("buildHealthReport", () => {
       {
         NODE_ENV: "development",
         SUPABASE_SECRET_KEY: SECRET,
-        GEMINI_API_KEY: SECRET,
         RESEND_API_KEY: SECRET,
         GOOGLE_PLACES_API_KEY: SECRET,
         NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",

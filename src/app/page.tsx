@@ -43,7 +43,7 @@ const steps = [
   {
     n: "2",
     title: "Plan",
-    body: "Playbook-driven questions and AI suggestions, checked by rules.",
+    body: "Guided questions for your event type, and a draft plan checked by rules.",
   },
   {
     n: "3",
@@ -71,7 +71,7 @@ const principles = [
   {
     icon: "M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8",
     title: "Honest integrations",
-    body: "Anything simulated is labelled “Mock”.",
+    body: "Anything simulated is clearly labelled as test data.",
   },
   {
     icon: "M4 6h16M4 12h10M4 18h7",
@@ -243,16 +243,10 @@ export default function LandingPage() {
 
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-ink-muted sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-          <p>HalaEvents — hackathon project, in development.</p>
+          <p>HalaEvents — event planning with approvals built in.</p>
           <nav aria-label="Footer" className="flex flex-wrap gap-x-5 gap-y-2">
             <Link href="/sign-in" className="rounded-sm hover:text-ink">
               Sign in
-            </Link>
-            <Link href="/status" className="rounded-sm hover:text-ink">
-              System status
-            </Link>
-            <Link href="/design-system" className="rounded-sm hover:text-ink">
-              Design system
             </Link>
           </nav>
         </div>

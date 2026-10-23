@@ -2,10 +2,9 @@ import { z } from "zod";
 import { Question, TaskCategory, TaskPriority } from "./playbook";
 
 /**
- * Model output schemas (event.md §10.1, §17.4). Kept flat (no unions) so they convert cleanly to
- * Gemini's JSON-schema subset; business rules the schema can't express (dates, dependency graph,
- * evidence ids, URLs) are checked in rules.ts and trigger the client's repair retry.
- * There is deliberately no URL/source field: the model can only cite evidence ids we supplied.
+ * Plan schemas (event.md §10.1, §17.4). The planning engine produces a `PlanOutput`; it is
+ * validated by rules.ts (dates, dependency graph, evidence ids, URLs) before anything is stored.
+ * There is deliberately no URL/source field: a plan can only cite evidence ids the engine supplied.
  */
 
 export const TempId = z
@@ -33,54 +32,73 @@ export const TaskProposal = z.object({
   requiredInfo: z.array(z.string().min(2).max(200)).max(5),
   evidenceIds: z.array(z.string().min(3).max(80)).max(6),
   confidence: z.enum(["high", "medium", "low"]),
-  /** What the proposal is unsure about; empty when nothing. */
+  /** What the plan is unsure about (usually an unanswered question); empty when nothing. */
   uncertainty: z.string().max(300),
   nextAction: z.string().min(3).max(200),
 });
 export type TaskProposal = z.infer<typeof TaskProposal>;
 
-const Line = z.string().min(3).max(200);
+const Line = z.string().min(3).max(300);
 
-/** The non-task parts of a proposal. Everything here is a suggestion; amounts are unverified estimates. */
+/** The non-task parts of a plan. Everything here is a suggestion; amounts are unverified estimates. */
 export const PlanOverview = z.object({
-  summary: z.string().min(10).max(600),
-  requirements: z.array(Line).max(10),
+  summary: z.string().min(10).max(800),
+  goals: z.array(Line).max(12).default([]),
+  requirements: z.array(Line).max(20),
   missingInformation: z.array(Line).max(10),
+  /** Decisions the organizers still have to make. */
+  decisions: z.array(Line).max(20).default([]),
+  /** The few unanswered questions that would change the plan the most. */
+  followUpQuestions: z
+    .array(z.object({ question: z.string().min(3).max(200), why: z.string().max(300) }))
+    .max(8)
+    .default([]),
   budgetCategories: z
     .array(
       z.object({
         name: z.string().min(2).max(60),
-        /** An estimate in the event's currency; 0 when the model can't estimate. */
+        /** An illustrative allowance in the event's currency; 0 when none can be given. */
         estimatedAmount: z.number().min(0).max(100_000_000),
-        note: z.string().max(200),
+        note: z.string().max(300),
       }),
     )
-    .max(12),
+    .max(20),
+  /** How the illustrative amounts were made and how they compare with the event budget. */
+  budgetSummary: z.string().max(600).default(""),
   risks: z
     .array(
       z.object({
         title: z.string().min(3).max(100),
         mitigation: z.string().min(3).max(200),
         likelihood: z.enum(["high", "medium", "low"]),
+        /** The fallback if the risk happens anyway. */
+        contingency: z.string().max(200).default(""),
       }),
     )
-    .max(10),
+    .max(20),
+  /** Event-day timetable in the event's timezone. */
+  schedule: z
+    .array(
+      z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        start: z.string().regex(/^\d{2}:\d{2}$/),
+        end: z.string().regex(/^\d{2}:\d{2}$/),
+        title: z.string().min(3).max(100),
+        note: z.string().max(200).default(""),
+      }),
+    )
+    .max(60)
+    .default([]),
 });
 export type PlanOverview = z.infer<typeof PlanOverview>;
 
 export const PlanOutput = z
   .object({
     tasks: z.array(TaskProposal).min(1).max(40),
-    assumptions: z.array(z.string().min(3).max(200)).max(8),
+    assumptions: z.array(z.string().min(3).max(300)).max(20),
   })
   .extend(PlanOverview.shape);
 export type PlanOutput = z.infer<typeof PlanOutput>;
-
-export const TaskRevisionOutput = z.object({
-  task: TaskProposal,
-  changeSummary: z.string().min(3).max(200),
-});
-export type TaskRevisionOutput = z.infer<typeof TaskRevisionOutput>;
 
 /** A task proposal after deterministic resolution: what ai_suggestions.payload holds. */
 export const StoredTask = TaskProposal.extend({
@@ -90,31 +108,8 @@ export const StoredTask = TaskProposal.extend({
 });
 export type StoredTask = z.infer<typeof StoredTask>;
 
-export const FollowUpOutput = z.object({
-  questions: z
-    .array(
-      z.object({
-        key: z
-          .string()
-          .regex(/^custom\.[a-z][a-z0-9_]{2,40}$/, { message: "Use custom.<snake_case>." }),
-        text: z.string().min(10).max(200),
-        why: z.string().min(5).max(300),
-        type: z.enum(["text", "boolean", "single_choice"]),
-        /** Answer labels for single_choice; empty otherwise. */
-        options: z.array(z.string().min(1).max(60)).max(6),
-      }),
-    )
-    .max(3),
-  enoughInformation: z.boolean(),
-});
-export type FollowUpOutput = z.infer<typeof FollowUpOutput>;
-
 /** ai_suggestions.payload for kind = 'question' is a playbook-style Question. */
 export const StoredFollowUp = Question;
-
-export const ReviseTaskInput = z.object({
-  note: z.string().trim().min(5, { message: "Describe the change in a few words." }).max(300),
-});
 
 export const PlanSource = z.enum(["ai", "playbook"]);
 export const SuggestionStatus = z.enum(["proposed", "accepted", "rejected", "superseded"]);

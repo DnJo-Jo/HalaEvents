@@ -1,4 +1,4 @@
-import type { RecoveryGuidance } from "@/modules/ai/playbook";
+import type { RecoveryGuidance } from "@/modules/planning/playbook";
 import { unknownPlaceholders } from "@/modules/comms/rules";
 import type { Impact, PlannedChange, RecoveryProposal } from "./schemas";
 
@@ -398,10 +398,10 @@ export function budgetView(impact: Impact): BudgetView {
 }
 
 // ------------------------------------------------------------------------------------------------
-// Offline proposal (mock provider)
+// Proposal from rules
 // ------------------------------------------------------------------------------------------------
 
-/** What the mock "model" returns: deterministic, built from the snapshot only. */
+/** The recovery proposal: deterministic, built from the impact snapshot and the playbook guidance only. */
 export function deterministicProposal(
   impact: Impact,
   today: string,

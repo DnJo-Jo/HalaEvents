@@ -34,12 +34,7 @@ describe("static security checks (regression guards, not a security guarantee)",
     expect(bad).toEqual([]);
   });
   it("secrets are read only in server-only modules, never via NEXT_PUBLIC_", () => {
-    const secretNames = [
-      "SUPABASE_SECRET_KEY",
-      "GEMINI_API_KEY",
-      "RESEND_API_KEY",
-      "GOOGLE_PLACES_API_KEY",
-    ];
+    const secretNames = ["SUPABASE_SECRET_KEY", "RESEND_API_KEY", "GOOGLE_PLACES_API_KEY"];
     const leaks = files.filter(
       (f) =>
         secretNames.some((n) => f.s.includes(n)) &&
@@ -64,7 +59,7 @@ describe("static security checks (regression guards, not a security guarantee)",
       .map((f) => f.p);
     expect(bad).toEqual([]);
   });
-  it("only the Gemini adapter and integrations call external hosts", () => {
+  it("only the integrations call external hosts", () => {
     const hosts = files
       .filter((f) =>
         /https:\/\/(?!example\.|www\.w3\.org|open-meteo\.com\/|claude\.com)[a-z.-]+\.(com|ai|dev|io)\//.test(
@@ -72,7 +67,7 @@ describe("static security checks (regression guards, not a security guarantee)",
         ),
       )
       .map((f) => f.p)
-      .filter((p) => !p.startsWith("src/lib/integrations/") && !p.startsWith("src/lib/ai/"));
+      .filter((p) => !p.startsWith("src/lib/integrations/"));
     expect(hosts).toEqual([]);
   });
   it("security headers are configured", () => {
@@ -93,8 +88,8 @@ describe("static security checks (regression guards, not a security guarantee)",
     expect(logs).toEqual([
       "src/components/error-panel.tsx",
       "src/instrumentation.ts",
-      "src/lib/ai/gemini.ts",
-      "src/lib/ai/log.ts",
+      "src/modules/planning/service.ts",
+      "src/modules/recovery/service.ts",
     ]);
   });
 });

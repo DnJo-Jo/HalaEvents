@@ -84,7 +84,7 @@ export default async function CheckPage({
           <p>{c.reason}</p>
           <p className="text-ink-muted">
             {c.origin === "rule"
-              ? "Flagged by a fixed HalaEvents rule from your answers, not by AI. "
+              ? "Flagged by a fixed HalaEvents rule from your answers. "
               : "Added by an organizer. "}
             {COMPLIANCE_STATUS[c.status].meaning}
           </p>
@@ -436,3 +436,6 @@ export default async function CheckPage({
     </div>
   );
 }
+
+/** Data-dependent route behind the app shell Suspense; blocking navigation is intended. */
+export const instant = false;

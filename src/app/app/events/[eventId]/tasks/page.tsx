@@ -32,8 +32,8 @@ const PRIORITY_TONE: Record<TaskPriority, BadgeTone> = {
 };
 const ORIGIN_LABEL = {
   manual: "Added by hand",
-  ai_plan: "From AI plan",
-  playbook_plan: "From playbook",
+  ai_plan: "From the plan",
+  playbook_plan: "From the plan",
 };
 
 export default async function TasksPage({ params }: { params: Promise<{ eventId: string }> }) {
@@ -272,3 +272,6 @@ export default async function TasksPage({ params }: { params: Promise<{ eventId:
     </div>
   );
 }
+
+/** Data-dependent route behind the app shell Suspense; blocking navigation is intended. */
+export const instant = false;

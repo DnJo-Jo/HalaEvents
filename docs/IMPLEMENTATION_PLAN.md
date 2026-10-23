@@ -87,7 +87,7 @@ Providers and events exist as schema + RLS + RPCs only; their UIs are P9 and P2.
 - ✅ (unit + PGlite) Answers saved per `question_key` (upsert); Zod rejects malformed answers, unknown options and forged rounds; viewers,
   outsiders, anon, suspended accounts and live/completed/cancelled events can't save; changing an answer removes dependent answers.
 
-## P3 — AI adapter & plan generation — ✅ built and locally tested (2026-10-22); real Gemini call not yet run
+## P3 — Plan generation — ✅ built and locally tested. **2026-10-23: the Gemini adapter was replaced by the deterministic playbook engine (event.md §17.0); the text below is history.**
 **Built:** `src/lib/ai/{types,client,gemini,mock,hash,log}.ts`, `src/modules/ai/{schemas,rules,prompts,provider,repo,service,actions}.ts`,
 `playbooks/university-hackathon.json` (v2), page `/app/events/[eventId]/plan`, follow-ups on the interview page,
 migration `20261022000002_ai.sql` (`event.md` §17). **Decision:** Gemini is called over its REST API with `fetch`; no SDK (user, 2026-10-22).

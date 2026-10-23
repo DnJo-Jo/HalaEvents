@@ -4,8 +4,8 @@ import { createSupabaseServerClient } from "@/lib/db/server";
 import { AppError } from "@/lib/errors";
 import { requireMember } from "@/modules/profiles/service";
 import { playbookFor } from "@/playbooks";
-import { listFollowUps } from "@/modules/ai/repo";
-import { missingInformation } from "@/modules/ai/rules";
+import { listFollowUps } from "@/modules/planning/repo";
+import { missingInformation } from "@/modules/planning/rules";
 import {
   answerContext,
   eventContext,

@@ -7,6 +7,11 @@ import { ProviderCategory } from "@/modules/profiles/schemas";
  * malformed playbook fails tests and the build instead of reaching users. Questions drive the
  * deterministic interview (P2); task templates, risks, missing-information checks, compliance topics
  * and provider categories feed plan generation (P3). Playbooks are JSON files in /playbooks.
+ *
+ * Besides tasks, a playbook carries the decision tables the planning engine (engine.ts) evaluates
+ * against the organizer's answers: goals, requirements, assumptions, open decisions, budget lines,
+ * event-day schedule blocks and per-task adjustments. Text may use `{{question.key}}` /
+ * `{{event.capacity}}` placeholders, checked here so a typo fails the build, not a user's plan.
  */
 
 /** "audience.level", "custom.parking" — dotted, lower-case. Matches the interview_answers CHECK. */
@@ -23,6 +28,12 @@ export const EVENT_CONTEXT_KEYS = [
   "event.city",
   "event.budget_amount",
 ] as const;
+
+/** Extra, read-only placeholders the engine fills in text (not usable in conditions). */
+export const TEXT_ONLY_KEYS = ["event.name", "event.dates"] as const;
+const PLACEHOLDER = /\{\{\s*([a-z0-9_.]+)\s*\}\}/g;
+export const placeholdersIn = (text: string): string[] =>
+  [...text.matchAll(PLACEHOLDER)].map((m) => m[1]);
 
 const Scalar = z.union([z.string(), z.number(), z.boolean()]);
 const ConditionKey = z.union([z.enum(EVENT_CONTEXT_KEYS), QuestionKey]);
@@ -123,6 +134,21 @@ export const TaskTemplate = z.object({
   risks: z.array(ItemKey).max(5).default([]),
   providerCategory: ProviderCategory.optional(),
   nextAction: z.string().min(3).max(200),
+  /**
+   * Decision table: every row whose conditions hold changes the task. Rows apply in order; the
+   * last priority wins, day shifts add up (negative = earlier), notes are appended to the description.
+   */
+  adjustments: z
+    .array(
+      z.object({
+        when: z.array(Condition).min(1).max(5),
+        priority: TaskPriority.optional(),
+        shiftDays: z.number().int().min(-120).max(120).optional(),
+        note: z.string().min(3).max(300).optional(),
+      }),
+    )
+    .max(8)
+    .default([]),
 });
 export type TaskTemplate = z.infer<typeof TaskTemplate>;
 
@@ -131,6 +157,12 @@ export const RiskCategory = z.object({
   label: z.string().min(3).max(80),
   description: z.string().min(3).max(300),
   when: z.array(Condition).max(5).default([]),
+  /** What to do to reduce the risk, and the fallback if it happens anyway. */
+  mitigation: z.string().min(3).max(200).default("Review the related tasks in this plan."),
+  contingency: z.string().max(200).default(""),
+  likelihood: z.enum(["high", "medium", "low"]).default("medium"),
+  /** Conditions that raise the likelihood to "high". */
+  elevatedWhen: z.array(Condition).max(5).default([]),
 });
 
 /** Information the plan needs. Missing (unanswered, skipped or unset) items block generation. */
@@ -154,6 +186,54 @@ export const ComplianceTopic = z.object({
     "institution_policy",
     "organizer_decision",
   ]),
+  when: z.array(Condition).max(5).default([]),
+});
+
+const Text300 = z.string().min(3).max(300);
+
+/** A line of overview text that applies when its conditions hold. */
+export const TextRule = z.object({ text: Text300, when: z.array(Condition).max(5).default([]) });
+
+/** An assumption the plan makes while `ifMissing` (a question or event fact) is unanswered. */
+export const AssumptionRule = z.object({
+  text: Text300,
+  when: z.array(Condition).max(5).default([]),
+  ifMissing: z.union([z.enum(EVENT_CONTEXT_KEYS), QuestionKey]).optional(),
+});
+
+/** A decision still open: shown while `ifMissing` is unanswered or `when` holds (e.g. "not decided"). */
+export const DecisionRule = AssumptionRule;
+
+/**
+ * An illustrative budget line. Amounts are planning allowances in `referenceCurrency`, never
+ * quotes: the engine labels them and shows none when the event uses another currency.
+ */
+export const BudgetLine = z.object({
+  key: ItemKey,
+  name: z.string().min(2).max(60),
+  basis: z.enum(["fixed", "per_attendee", "per_group"]),
+  unitAmount: z.number().min(0).max(10_000_000),
+  /** per_group: a number question holding the group (team) size. */
+  groupSizeKey: QuestionKey.optional(),
+  note: z.string().max(200).default(""),
+  when: z.array(Condition).max(5).default([]),
+  adjustments: z
+    .array(
+      z.object({ when: z.array(Condition).min(1).max(5), multiplier: z.number().min(0).max(10) }),
+    )
+    .max(6)
+    .default([]),
+});
+
+/** An event-day block, placed from the start or the end of the event. Blocks that don't fit are dropped. */
+export const ScheduleBlock = z.object({
+  key: ItemKey,
+  title: z.string().min(3).max(100),
+  from: z.enum(["start", "end"]),
+  /** Minutes after the start (from "start") or before the end (from "end"; the block ends that long before). */
+  offsetMinutes: z.number().int().min(0).max(20_000),
+  durationMinutes: z.number().int().min(5).max(1_440),
+  note: z.string().max(200).default(""),
   when: z.array(Condition).max(5).default([]),
 });
 
@@ -198,6 +278,15 @@ export const PlaybookSchema = z
     questions: z.array(Question).min(1).max(100),
     taskTemplates: z.array(TaskTemplate).max(60).default([]),
     riskCategories: z.array(RiskCategory).max(30).default([]),
+    /** Illustrative amounts below are in this currency. */
+    referenceCurrency: z.string().length(3).default("AED"),
+    summary: z.string().min(10).max(600),
+    goals: z.array(TextRule).max(12).default([]),
+    requirements: z.array(TextRule).max(20).default([]),
+    assumptions: z.array(AssumptionRule).max(20).default([]),
+    decisions: z.array(DecisionRule).max(20).default([]),
+    budgetLines: z.array(BudgetLine).max(20).default([]),
+    schedule: z.array(ScheduleBlock).max(40).default([]),
     requiredForPlan: z.array(RequiredInfo).max(30).default([]),
     complianceTopics: z.array(ComplianceTopic).max(30).default([]),
     providerCategories: z.array(ProviderSuggestion).max(20).default([]),
@@ -300,6 +389,79 @@ export const PlaybookSchema = z
       if (!r.key.startsWith("event.") && !seen.has(r.key)) {
         issue(["requiredForPlan", i, "key"], `${r.key} is not a question`);
       }
+    });
+
+    const knownInfo = (k: string) =>
+      (EVENT_CONTEXT_KEYS as readonly string[]).includes(k) || seen.has(k);
+    const sections = [
+      ["goals", p.goals],
+      ["requirements", p.requirements],
+      ["assumptions", p.assumptions],
+      ["decisions", p.decisions],
+      ["budgetLines", p.budgetLines],
+      ["schedule", p.schedule],
+    ] as const;
+    for (const [section, items] of sections) {
+      unique(
+        items.map((x, i) => ("key" in x ? x.key : `${section}_${i}`)),
+        section,
+      );
+      items.forEach((item, i) => {
+        item.when.forEach((c, j) => checkCondition(c, seen, [section, i, "when", j], "a question"));
+        if ("ifMissing" in item && item.ifMissing && !knownInfo(item.ifMissing))
+          issue([section, i, "ifMissing"], `${item.ifMissing} is not a question or event fact`);
+      });
+    }
+    p.budgetLines.forEach((b, i) => {
+      b.adjustments.forEach((a, j) =>
+        a.when.forEach((c, k) =>
+          checkCondition(c, seen, ["budgetLines", i, "adjustments", j, "when", k], "a question"),
+        ),
+      );
+      const group = b.groupSizeKey ? seen.get(b.groupSizeKey) : undefined;
+      if (b.basis === "per_group" && group?.type !== "number")
+        issue(["budgetLines", i, "groupSizeKey"], "per_group needs a number question");
+    });
+    p.taskTemplates.forEach((t, i) =>
+      t.adjustments.forEach((a, j) =>
+        a.when.forEach((c, k) =>
+          checkCondition(c, seen, ["taskTemplates", i, "adjustments", j, "when", k], "a question"),
+        ),
+      ),
+    );
+    p.riskCategories.forEach((r, i) =>
+      r.elevatedWhen.forEach((c, j) =>
+        checkCondition(c, seen, ["riskCategories", i, "elevatedWhen", j], "a question"),
+      ),
+    );
+
+    // Every {{placeholder}} in plan text must name a question or an event fact.
+    const texts: [string, string][] = [
+      ["summary", p.summary],
+      ...p.goals.map((x, i): [string, string] => [`goals.${i}`, x.text]),
+      ...p.requirements.map((x, i): [string, string] => [`requirements.${i}`, x.text]),
+      ...p.assumptions.map((x, i): [string, string] => [`assumptions.${i}`, x.text]),
+      ...p.decisions.map((x, i): [string, string] => [`decisions.${i}`, x.text]),
+      ...p.budgetLines.map((x, i): [string, string] => [`budgetLines.${i}`, x.note]),
+      ...p.taskTemplates.flatMap((t, i): [string, string][] => [
+        [`taskTemplates.${i}.description`, t.description],
+        [`taskTemplates.${i}.nextAction`, t.nextAction],
+        ...t.adjustments.map((a, j): [string, string] => [
+          `taskTemplates.${i}.adjustments.${j}`,
+          a.note ?? "",
+        ]),
+      ]),
+    ];
+    for (const [where, text] of texts) {
+      for (const k of placeholdersIn(text)) {
+        if (!knownInfo(k) && !(TEXT_ONLY_KEYS as readonly string[]).includes(k))
+          issue([where], `Unknown placeholder {{${k}}}`);
+      }
+    }
+
+    // Schedule blocks are placed by minutes; a block longer than a day can't be placed sensibly.
+    p.schedule.forEach((b, i) => {
+      if (b.from === "end" && b.offsetMinutes < 0) issue(["schedule", i], "Offset is negative");
     });
   });
 export type Playbook = z.infer<typeof PlaybookSchema>;

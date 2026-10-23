@@ -47,7 +47,7 @@ export async function generateRecoveryAction(
   if (!ids(eventId, incidentId)) return unknown;
   return plain(async () => {
     const r = await service.generateRecovery(eventId, incidentId);
-    return { ok: r.outcome === "created", message: r.message };
+    return { ok: true, message: r.message };
   });
 }
 

@@ -1,4 +1,4 @@
-import { findCycle } from "@/modules/ai/playbook";
+import { findCycle } from "@/modules/planning/playbook";
 import type { TaskStatus } from "./schemas";
 
 /**

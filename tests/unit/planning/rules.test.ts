@@ -1,21 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { PlaybookSchema, findCycle } from "@/modules/ai/playbook";
+import { PlaybookSchema, findCycle } from "@/modules/planning/playbook";
 import {
-  MAX_FOLLOW_UPS,
   addDays,
   evidenceCatalog,
-  filterFollowUps,
   isRealDate,
   localDate,
   missingInformation,
   planContext,
-  playbookPlan,
   resolvePlan,
   validatePlan,
-  validateRevision,
   type PlanContext,
-} from "@/modules/ai/rules";
-import { PlanOutput, type TaskProposal } from "@/modules/ai/schemas";
+} from "@/modules/planning/rules";
+import { buildPlan } from "@/modules/planning/engine";
+import { PlanOutput, type TaskProposal } from "@/modules/planning/schemas";
 import {
   answerContext,
   eventContext,
@@ -152,10 +149,15 @@ describe("dates", () => {
 describe("validatePlan", () => {
   const overview = {
     summary: "A two-day hackathon for students.",
+    goals: [],
     requirements: [],
     missingInformation: [],
+    decisions: [],
+    followUpQuestions: [],
     budgetCategories: [],
+    budgetSummary: "",
     risks: [],
+    schedule: [],
   };
   const plan = (tasks: TaskProposal[], assumptions: string[] = []) => ({
     ...overview,
@@ -293,10 +295,16 @@ describe("resolvePlan", () => {
   });
 });
 
-describe("deterministic playbook plan", () => {
-  const plan = playbookPlan(playbook, actx, evidence);
+describe("engine plan", () => {
+  const input = {
+    playbook,
+    event: { ...event, name: "Campus Hack", currency: "AED" },
+    ctx: actx,
+    plan: ctx,
+  };
+  const plan = buildPlan(input);
 
-  it("includes only applicable templates and is valid against the same rules as AI output", () => {
+  it("includes only applicable templates and is valid against the plan rules", () => {
     const ids = plan.tasks.map((t) => t.tempId);
     expect(ids).toContain("guardian_consent"); // school students
     expect(ids).toContain("book_campus_venue"); // on campus
@@ -313,7 +321,7 @@ describe("deterministic playbook plan", () => {
   });
 
   it("is deterministic", () => {
-    expect(playbookPlan(playbook, actx, evidence)).toEqual(plan);
+    expect(buildPlan(input)).toEqual(plan);
   });
 
   it("evidence lists answers and applicable playbook items, labelled; topics say 'not verified'", () => {
@@ -348,98 +356,5 @@ describe("missing information", () => {
     expect(missingInformation(playbook, answerContext(ectx, s)).map((m) => m.key)).toEqual([
       "audience.guardian_consent",
     ]);
-  });
-});
-
-describe("validateRevision", () => {
-  const [a, b] = resolvePlan(
-    [task({ tempId: "a_task" }), task({ tempId: "b_task", dependsOn: ["a_task"] })],
-    ctx,
-  );
-  it("keeps the id and the graph valid", () => {
-    expect(validateRevision(task({ tempId: "a_task", title: "New title" }), a, [b], ctx)).toEqual(
-      [],
-    );
-    expect(validateRevision(task({ tempId: "other" }), a, [b], ctx)[0]).toMatch(
-      /must stay "a_task"/,
-    );
-    expect(
-      validateRevision(task({ tempId: "a_task", dependsOn: ["b_task"] }), a, [b], ctx).join(),
-    ).toMatch(/cycle/);
-  });
-});
-
-describe("follow-up filtering", () => {
-  const q = (key: string, text: string, extra = {}) => ({
-    key,
-    text,
-    why: "Because it matters.",
-    type: "text" as const,
-    options: [],
-    ...extra,
-  });
-  const existing = {
-    keys: new Set(["audience.level", "custom.old"]),
-    texts: ["Who is the hackathon for?"],
-    liveCount: 0,
-  };
-
-  it("drops reused keys and repeated wording; never re-asks answered or dismissed questions", () => {
-    const out = filterFollowUps(
-      {
-        questions: [
-          q("custom.old", "A dismissed question again?"),
-          q("custom.audience_again", "Who is the hackathon for?"),
-          q("custom.parking", "Is parking available for participants?"),
-        ],
-        enoughInformation: false,
-      },
-      existing,
-    );
-    expect(out.map((x) => x.key)).toEqual(["custom.parking"]);
-    expect(out[0]).toMatchObject({ type: "text", required: false, maxLength: 300, when: [] });
-  });
-
-  it("converts choices to options with stable values; too few options → free text; URLs dropped", () => {
-    const out = filterFollowUps(
-      {
-        questions: [
-          q("custom.format", "How will teams present their projects?", {
-            type: "single_choice",
-            options: ["Demo", "Slides", "Demo"],
-          }),
-          q("custom.one_option", "Is there only one choice here?", {
-            type: "single_choice",
-            options: ["Yes"],
-          }),
-          q("custom.link", "Did you read https://example.com/rules first?"),
-        ],
-        enoughInformation: false,
-      },
-      existing,
-    );
-    expect(out[0]).toMatchObject({
-      type: "single_choice",
-      options: [
-        { value: "option_1", label: "Demo" },
-        { value: "option_2", label: "Slides" },
-      ],
-    });
-    expect(out[1]).toMatchObject({ type: "text" });
-    expect(out.map((x) => x.key)).not.toContain("custom.link");
-  });
-
-  it("respects the per-event limit", () => {
-    const out = filterFollowUps(
-      {
-        questions: [
-          q("custom.aaa", "First new question here?"),
-          q("custom.bbb", "Second new question here?"),
-        ],
-        enoughInformation: false,
-      },
-      { ...existing, liveCount: MAX_FOLLOW_UPS - 1 },
-    );
-    expect(out).toHaveLength(1);
   });
 });

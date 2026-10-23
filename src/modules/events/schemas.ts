@@ -18,8 +18,13 @@ export const EventStatus = z.enum([
 ]);
 export type EventStatus = z.infer<typeof EventStatus>;
 
-export const EventType = z.enum(["university_hackathon"]);
+export const EventType = z.enum(["university_hackathon", "conference", "workshop"]);
 export type EventType = z.infer<typeof EventType>;
+export const EVENT_TYPE_LABELS: Record<EventType, string> = {
+  university_hackathon: "University hackathon",
+  conference: "Conference or seminar",
+  workshop: "Workshop or training session",
+};
 export const VenueType = z.enum(["indoor", "outdoor", "hybrid", "online"]);
 export const EventMemberRole = z.enum(["owner", "organizer", "viewer"]);
 export type EventMemberRole = z.infer<typeof EventMemberRole>;
@@ -54,6 +59,7 @@ export function eventFormInput(timeZone: string) {
   return z
     .object({
       name: z.string().trim().min(3, { message: "Use at least 3 characters." }).max(120),
+      eventType: EventType.default("university_hackathon"),
       venueType: z.preprocess((v) => (v === "" ? undefined : v), VenueType.optional()),
       locationText: optionalText(200),
       city: optionalText(80),

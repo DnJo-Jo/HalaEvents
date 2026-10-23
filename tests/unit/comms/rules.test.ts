@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  aiDraftErrors,
+  draftErrors,
   DELIVERY_LABELS,
   personalize,
   unknownPlaceholders,
@@ -21,28 +21,28 @@ describe("message rules", () => {
 
   it("rejects AI drafts with unknown placeholders, links or confirmation claims", () => {
     expect(
-      aiDraftErrors({ subject: "Hello", body: "Hi {{name}}, see you at {{event_name}}." }),
+      draftErrors({ subject: "Hello", body: "Hi {{name}}, see you at {{event_name}}." }),
     ).toEqual([]);
     expect(
-      aiDraftErrors({ subject: "Hello", body: "Hi {{first_name}}, welcome aboard!" })[0],
+      draftErrors({ subject: "Hello", body: "Hi {{first_name}}, welcome aboard!" })[0],
     ).toMatch(/Unknown placeholders/);
     expect(
-      aiDraftErrors({ subject: "Hello", body: "Details at https://example.com today." })[0],
+      draftErrors({ subject: "Hello", body: "Details at https://example.com today." })[0],
     ).toMatch(/links/);
     expect(
-      aiDraftErrors({
+      draftErrors({
         subject: "Update",
         body: "Good news: the permit has been approved by DET.",
       })[0],
     ).toMatch(/approved or confirmed/);
     expect(
-      aiDraftErrors({
+      draftErrors({
         subject: "Update",
         body: "The venue is confirmed for the whole weekend.",
       })[0],
     ).toMatch(/approved or confirmed/);
     expect(
-      aiDraftErrors({ subject: "Confirmed", body: "Your registration is confirmed, {{name}}." }),
+      draftErrors({ subject: "Confirmed", body: "Your registration is confirmed, {{name}}." }),
     ).toEqual([]);
   });
 

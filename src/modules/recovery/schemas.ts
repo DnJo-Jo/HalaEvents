@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TaskCategory, TaskPriority } from "@/modules/ai/playbook";
+import { TaskCategory, TaskPriority } from "@/modules/planning/playbook";
 import { optionalText } from "@/lib/schemas/common";
 
 /**

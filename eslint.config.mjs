@@ -9,33 +9,23 @@ const eslintConfig = defineConfig([
     rules: {
       // Server actions have fixed (prevState, formData) signatures; "_"-prefixed args are intentional.
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
-      // Gemini is called over REST from src/lib/ai/gemini.ts only; no vendor SDK (event.md §17.1).
+      // Planning is deterministic (playbook engine, event.md §17): no external AI SDK may be added.
       "no-restricted-imports": [
         "error",
         {
           patterns: [
             {
-              group: ["@google/genai", "@google/generative-ai", "@google-cloud/vertexai"],
-              message: "Call Gemini through src/lib/ai (REST adapter); no vendor SDK.",
+              group: [
+                "@google/genai",
+                "@google/generative-ai",
+                "@google-cloud/vertexai",
+                "@anthropic-ai/*",
+                "openai",
+                "groq-sdk",
+              ],
+              message: "Planning uses the playbook engine; no external AI SDK.",
             },
           ],
-        },
-      ],
-    },
-  },
-  {
-    files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/lib/ai/gemini.ts"],
-    rules: {
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector: "Literal[value=/generativelanguage\\.googleapis\\.com/]",
-          message: "Only src/lib/ai/gemini.ts may talk to the Gemini API.",
-        },
-        {
-          selector: "TemplateElement[value.raw=/generativelanguage\\.googleapis\\.com/]",
-          message: "Only src/lib/ai/gemini.ts may talk to the Gemini API.",
         },
       ],
     },

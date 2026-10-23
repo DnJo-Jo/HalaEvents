@@ -1,5 +1,16 @@
 # Session Handoff
 
+## Last session: 2026-10-23 — plan gate removed; Groq key/model still missing
+- Local migrations: all 15 applied (incl. `20261023000001`), checked with `node_modules/.bin/supabase migration list --local` (the CLI is not on PATH; use `npx supabase`).
+- Root cause of "plan won't generate": `generatePlan` refused to call the model unless the playbook's `requiredForPlan` answers existed, and the plan page hid the Generate button. Both gates removed; missing answers now go to the model as known gaps (assumptions / missingInformation). Prompt now separates confirmed facts, assumptions and estimates.
+- `.env.local` has `XAI_API_KEY` (xai- prefix = xAI/Grok, not Groq) and EMPTY `GROQ_API_KEY`/`GROQ_MODEL`; `GEMINI_*` lines are gone. No model chosen, no live call.
+- Checks: lint, typecheck, `npm test` 49 files / 720 pass.
+
+## Last session: 2026-10-23 — Groq provider + `instant` fix
+- Root cause of the failed Gemini plan: Google returned HTTP 429 (project quota for `gemini-3.5-flash` used up, retry ~7.8 h) on one click of "Suggest follow-up questions (AI)"; no auto-calls exist. The interview-page "Instant" error was fixed with `export const instant = false` on 20 data pages.
+- Added Groq: `src/lib/ai/groq.ts` (fetch, OpenAI-compatible, JSON mode, no retry on 429), `AI_PROVIDER=groq` + `GROQ_API_KEY`/`GROQ_MODEL` in `env.server.ts`, `.env.example`, `provider.ts`, plan badge, migration `20261023000001_ai_provider_groq.sql` (ai_runs.provider check; **apply with `supabase migration up --local`**), prompt rule for assumptions/gaps, `tests/unit/ai/groq.test.ts`.
+- Checks: lint, typecheck, format, `npm test` 49 files / 720 pass. No live call. Free-tier limits/model NOT verified (docs say limits are per model and shown in the Groq console).
+
 ## Last session: 2026-10-23 — Gemini workflow audit
 - Found the workflow already complete (see next entry); only change: allow-listed the new `console.warn` in `src/lib/ai/gemini.ts` (logs Google's truncated error text, never the key) in `tests/unit/security/static.test.ts`. Uncommitted earlier edits (Gemini 3.x low thinking, no min/maxItems in schema, list limits in prompt) kept.
 - Checks run: lint, typecheck, `test:unit` (434 pass), format:check. Build/db tests not re-run. **No live Gemini call.**
@@ -409,3 +420,18 @@ Finish **P0** starting at step 1 (clean `npm install`, then read bundled Next 16
    git root is the parent folder. The plan's P0 now finishes the existing scaffold instead of re-running `create-next-app`.
 10. **Admin key usage narrowed.** Earlier draft routed public registration through the admin client; now an
    `anon`-granted `security definer` RPC, so the secret key is used only for seeding and tests.
+
+## Groq fix (2026-10-23)
+- Cause: `GROQ_API_KEY` held an xAI key (`xai-`), `GROQ_MODEL` was `grok-4.7`. xAI keys/models don't work on api.groq.com.
+- Done: key-prefix check in `src/lib/env.server.ts` + test; `GROQ_MODEL=llama-3.3-70b-versatile` in `.env.local`.
+- Next: put a real `gsk_` key in `.env.local`, restart `npm run dev`, then one live plan generation (confirm the model id at console.groq.com/settings/limits first). If xAI/Grok is wanted instead, that needs a new adapter (not built).
+
+## xAI (Grok) provider (2026-10-23)
+- Added `AI_PROVIDER=xai` (`XAI_API_KEY`, `XAI_MODEL`). Next: edit `.env.local` as listed in PROGRESS.md, restart `npm run dev`, generate one plan. Note xAI's own sample uses `/v1/responses`; we use `/v1/chat/completions` (not yet confirmed live).
+
+## Session 2026-10-23 (late): external AI removed, playbook engine is the only planning path
+- **Read first:** `event.md` §17.0 (current architecture) and `PROGRESS.md` last section. Everything about Gemini/Groq/xAI in §6 and §17.1–17.6 is history.
+- `src/modules/ai` is now `src/modules/planning` (engine.ts, rules.ts, schemas.ts, playbook.ts, service.ts, repo.ts, actions.ts). DB tables/RPCs keep their `ai_*` names.
+- Playbooks: `/playbooks/{university-hackathon,conference,workshop}.json`, registered in `src/playbooks/index.ts`. To add an event type: JSON playbook + `EventType` enum + CHECK migration + `EVENT_TYPE_LABELS`; the tests in `tests/unit/planning/engine.test.ts` (dependency order, schedule, no-AI scans) and `tests/db/ai.test.ts` then cover it if you add it to their lists.
+- `.env.local` no longer has AI variables. A dev server (`next-server`) was already running when `npm run verify` ran the build, so **restart `npm run dev`** (shared `.next`).
+- Next: browser walkthrough of Plan / Interview / Messages / Incidents; hosted Supabase: apply migration `20261023000003`; decide whether to edit assumptions in place.

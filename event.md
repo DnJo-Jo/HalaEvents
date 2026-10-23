@@ -7,15 +7,15 @@
 > Provider marketplace (listings, directory, shortlists, service requests, questions, quotes) implemented 2026-10-21 (§15),
 > tested the same way. No booking exists yet: a quote is never a booking.
 > Adaptive interview, deterministic playbook round (P2), implemented 2026-10-22 (§16), tested the same way.
-> AI adapter (Gemini over REST, no SDK; deterministic mock), plan proposals, follow-up questions and task revision (P3)
-> implemented 2026-10-22 (§17), tested with fakes and PGlite; **no real Gemini call has been made yet**.
+> Plan proposals (P3) implemented 2026-10-22 (§17). **Updated 2026-10-23: no external AI is used anywhere.** The plan is built by the
+> deterministic playbook engine (§17.0); the former Gemini/Groq/xAI adapters, follow-up suggestions and AI task revision were removed.
 > Event workspace (edit/status, tasks + dependencies, plan acceptance, progress, timeline, in-app notifications, §18) and the
 > compliance workflow (curated source registry, review states, evidence, simulated official submissions, §19) implemented
 > 2026-10-22, tested the same way (PGlite + unit/render tests, no live Supabase).
 > Attendees (§20), approval-gated communications with a mock/Resend email transport (§21) and bookings (§22) implemented
 > 2026-10-22, tested the same way. **No real email has been sent and no real provider has confirmed a booking.**
 > Crisis recovery for a **simulated** venue cancellation (P8, §23) and post-event reviews (P10, §24) implemented 2026-10-22, tested the same
-> way (PGlite + unit tests with a scripted AI provider). **No real Gemini request has been made, so recovery proposals from a real model are untested.**
+> way (PGlite + unit tests). Since 2026-10-23 the recovery proposal is built by rules from the impact snapshot and the playbook (§23), not by a model.
 > Source: `EventPilot_AI_Project_Report.docx` (14 Oct 2026), renamed to HalaEvents, extended with the
 > Phase 1 module list (providers, marketplace, quotes, bookings, reviews) which the report did not cover.
 
@@ -66,7 +66,7 @@ autonomously send, book, pay, or file.
 | DB access | `@supabase/supabase-js 2.118.0` + `@supabase/ssr 0.12.7` (no ORM). Rows parsed with Zod in `repo.ts`; generated types (`npm run db:types`) need a running local Supabase (Docker), not yet available. |
 | DB tooling (dev) | `supabase 2.121.0` CLI (config + migrations), `@electric-sql/pglite 0.5.11` (in-process Postgres for migration/RLS tests without Docker, §14.6). |
 | Validation | Zod (v4) — inputs, outputs, env, model responses. |
-| AI | Gemini via `@google/genai`, behind the `AiProvider` adapter (§6). |
+| Planning | Deterministic playbook engine (`src/modules/planning/engine.ts`, §17.0). No external AI service and no AI SDK (ESLint forbids importing one). |
 | Email | `mock` by default; Resend optional (single provider). |
 | Tests | Vitest (unit + DB; jsdom + Testing Library for component tests), Playwright (e2e demo journey). |
 | Formatting | Prettier + `prettier-plugin-tailwindcss` (already in `package.json`, part of `npm run verify`). |
@@ -100,7 +100,7 @@ src/
     env.client.ts              # NEXT_PUBLIC_* only
     db/                        # supabase server/browser/admin clients, generated types
     auth/                      # getSession, requireUser, requireEventRole, requireProviderRole, requireAdmin
-    ai/                        # types.ts (AiProvider), client.ts (generate), gemini.ts (REST), mock.ts, hash.ts, log.ts
+    input-hash.ts              # stable sha256 of canonical inputs (plan/recovery dedupe)
     integrations/              # email/, weather/, places/ — each: interface + mock + real
     audit/                     # writeAudit helper (for non-trigger audit entries)
     errors.ts, http.ts         # AppError, toResponse()
@@ -331,7 +331,10 @@ explicit entries for AI runs and approvals with the approved payload.
 
 ---
 
-## 6. AI orchestration
+## 6. AI orchestration (superseded 2026-10-23)
+
+> **Superseded.** HalaEvents no longer calls any external AI. The provider adapter described here was removed; planning is the
+> deterministic playbook engine (§17.0). This section is kept as project history only. The sketch below is not implemented.
 
 ### 6.1 Provider adapter (`src/lib/ai/types.ts`)
 > Implemented differently (2026-10-22, §17.1): providers return raw text via `generate(ProviderRequest)`; the shared
@@ -397,7 +400,6 @@ Ties broken by name. Weights live in `marketplace/rules.ts` and are unit-tested.
 ## 8. Integrations & mock mode
 | Integration | Env switch | Mock behaviour | Real (when configured) |
 |---|---|---|---|
-| AI | `AI_PROVIDER=mock\|gemini` | playbook-derived fixtures | Gemini structured output |
 | Email | `EMAIL_PROVIDER=mock\|resend` | records `sent`, provider `mock`, `is_mock=true`; never `delivered` | Resend send API |
 | Weather | `WEATHER_PROVIDER=mock\|open-meteo` | fixed forecast fixture labelled mock | Open-Meteo forecast (stretch) |
 | Places | `PLACES_PROVIDER=mock\|none\|google` | seeded venue candidates | Google Places (stretch, discovery only) |
@@ -407,12 +409,12 @@ A real integration selected without its key fails at startup env validation (fai
 The UI shows a "Mock" badge for `is_mock` rows and a global banner when any integration is mocked.
 
 ## 9. Environment variables
-See `.env.example`. Server-only: `SUPABASE_SECRET_KEY`, `GEMINI_API_KEY`, `RESEND_API_KEY`, `GOOGLE_PLACES_API_KEY`.
+See `.env.example`. Server-only: `SUPABASE_SECRET_KEY`, `RESEND_API_KEY`, `GOOGLE_PLACES_API_KEY`.
 Public: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_APP_URL`.
 (Projects still on legacy Supabase keys put the anon key in `…PUBLISHABLE_KEY` and service-role key in `SUPABASE_SECRET_KEY`.)
 
 Validation (`src/lib/env.server.ts`, Zod, at first import):
-- `AI_PROVIDER=gemini` requires `GEMINI_API_KEY` **and** `GEMINI_MODEL`; `EMAIL_PROVIDER=resend` requires `RESEND_API_KEY`
+- `EMAIL_PROVIDER=resend` requires `RESEND_API_KEY`
   and `EMAIL_FROM`; `PLACES_PROVIDER=google` requires `GOOGLE_PLACES_API_KEY`. Missing → readable startup error, never a silent mock fallback.
 - `env.client.ts` reads only the four `NEXT_PUBLIC_*` names. A unit test fails if any non-`NEXT_PUBLIC_` name appears in it.
 - `.env.example` contains names and non-secret local defaults only (local Supabase URL, `mock` switches).
@@ -762,9 +764,43 @@ a focused error summary (`ActionForm`).
   hidden on read and removed on the next save).
 - **Not built:** editing event details/status, `/api/events/**` route handlers. (AI follow-up questions were added in P3, §17.)
 
-## 17. AI adapter, plan proposals and follow-ups (implemented 2026-10-22)
+## 17. Planning engine, plan proposals (engine since 2026-10-23; AI adapter 2026-10-22, removed)
 
-### 17.1 Provider adapter: Gemini over REST, no SDK
+### 17.0 Current architecture: the playbook engine (2026-10-23)
+**Decision (user, 2026-10-23): no external AI API for the hackathon prototype** (no Gemini, Groq, xAI/Grok, Claude API or OpenRouter). The
+single planning path is deterministic and offline. Sections 17.1, 17.3, 17.4 (model rows) and 17.6 below describe the removed adapter and are
+kept as history.
+
+- **Playbooks** are versioned JSON (`playbooks/*.json`, validated by `PlaybookSchema` at import): `university-hackathon` (v3), `conference` (v1),
+  `workshop` (v1). Event types live in `EventType` (`events.event_type` CHECK, migration `20261023000003`). Besides questions, task templates,
+  risks, compliance topics and provider categories, a playbook now holds the decision tables the engine reads: `summary`, `goals`, `requirements`,
+  `assumptions` (`ifMissing`), `decisions`, `budgetLines` (`basis`, `adjustments` with multipliers), `schedule` blocks (from start/end, minutes) and
+  per-task `adjustments` (conditions → priority, day shift, extra note). Text may use `{{question.key}}`, `{{event.capacity}}`, `{{event.name}}`,
+  `{{event.dates}}`; unknown placeholders fail validation.
+- **Engine** (`src/modules/planning/engine.ts`, pure): `buildPlan({ playbook, event, ctx, plan })` → `PlanOutput`. It
+  applies every row whose conditions hold for the event facts and answers; fills text; adjusts task priority/timing; computes illustrative budget
+  lines (event currency must equal the playbook's `referenceCurrency`, else no amounts); places schedule blocks in the event timezone (blocks that
+  don't fit the event length are dropped); turns unanswered plan-critical items into assumptions, "missing information" and up to 5 follow-up
+  questions; turns "not decided" answers into open decisions; adds a "Short lead time" risk (< 14 days) and a budget-overrun risk/decision.
+  Tasks that wait for an unanswered question get `confidence: low` and an explanation.
+- **Never**: invents vendor availability, quotes, bookings or official requirements; every amount is labelled "Illustrative allowance … not a quote";
+  every plan states that nothing is confirmed. No network call exists in the planning path (tested with a `fetch` spy).
+- **Validation and storage**: the engine's output is checked by `validatePlan` (dependency graph, evidence ids, dates, no URLs) and stored through
+  the existing RPCs (`save_ai_plan` with `source = playbook`, no run; `set_ai_plan_overview`). The `ai_*` table names are historical. The plan stays a
+  set of proposals; accepting into tasks (`accept_ai_plan`) and the review/approval workflow are unchanged. Identical inputs keep the saved plan
+  (`input_hash` includes `ENGINE_VERSION`, playbook id/version, event facts and answers); changed inputs need an explicit "Regenerate plan".
+- **Other former AI uses**: message drafts start from per-kind templates (`src/modules/comms/templates.ts`, checked by `draftErrors`); the venue-recovery
+  proposal is `deterministicProposal()` + `validateProposal()` and a `playbook` run row (`ai_runs.provider = 'playbook'`) that the SQL requires; the
+  interview no longer generates follow-up questions (earlier saved ones remain answerable and dismissible); AI task revision was removed.
+- **Assumptions are editable** by changing the matching interview answer and pressing "Regenerate plan"; tasks are editable after they are accepted
+  into the workspace (P4). There is no free-text editing of an assumption inside the plan yet.
+- **Not covered**: mid-event schedule blocks beyond the opening/closing windows (blocks are anchored to the start or the end), non-AED budget amounts,
+  more event types than the three above.
+- Tests: `tests/unit/planning/{engine,rules,service}.test.tsx` (different types differ, answers change the plan, missing answers still plan, labels,
+  dependency/schedule validity, no AI code/hosts/env/SDK in the source tree, no provider wording in the UI), `tests/db/ai.test.ts` (engine output is
+  accepted by the real RPCs for all three playbooks).
+
+### 17.1 Provider adapter: Gemini over REST, no SDK — REMOVED 2026-10-23 (history)
 - **Decision (user, 2026-10-22): no vendor SDK.** `src/lib/ai/gemini.ts` calls the Google AI Studio REST endpoint
   `POST https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent` with plain `fetch`,
   `responseMimeType: application/json` and `responseJsonSchema` (from `z.toJSONSchema`, reduced to Gemini's supported keywords
@@ -790,13 +826,13 @@ a focused error summary (`ActionForm`).
 6 compliance topics (all labelled *not verified*), 5 provider categories. `PlaybookSchema` checks references and task-template
 dependency cycles when `src/playbooks/index.ts` imports it.
 
-### 17.3 Prompts (`src/modules/ai/prompts.ts`)
+### 17.3 Prompts — REMOVED 2026-10-23 (history)
 - Sent: event type, city, country, timezone, first/last day, duration, venue type, expected attendance, budget, the organizer's
   interview answers, the applicable playbook items and the evidence id list. **Not sent:** event name, member, provider or attendee data.
 - All variable content sits inside `<data>…</data>` as JSON, and the system prompt says it is data, never instructions.
 - System rules: never claim permits, availability or bookings; no URLs; don't invent laws or authorities, state uncertainty instead.
 
-### 17.4 Pipelines and deterministic rules (`src/modules/ai/{schemas,rules,service}.ts`)
+### 17.4 Pipelines and deterministic rules (history: the `interview` and `revise_task` pipelines were removed; `plan` rules now live in `rules.ts` and are applied to the engine's output)
 | Pipeline | Trigger | Output | Deterministic rules |
 |---|---|---|---|
 | `plan` | "Generate plan" / "Regenerate plan" on `/app/events/[id]/plan` | ≤ 40 task proposals + ≤ 8 assumptions | Needs every applicable `requiredForPlan` answer first (no model call otherwise). Unique temp ids, dependencies only on known ids, no self-dependency or cycle, evidence ids only from the supplied catalogue, no URLs, `date` deadlines real and not in the past or > 60 days after the event. Relative deadlines are resolved in the event timezone; pre-event tasks are clamped to the first day; past deadlines move to today; a task due before its dependency gets a warning. |
@@ -827,7 +863,7 @@ dependency cycles when `src/playbooks/index.ts` imports it.
 - Audit: plan insert/supersede and every suggestion status change go to `audit_log` by trigger.
 - **Nothing is written to tasks.** Accepting proposals into real tasks is P4.
 
-### 17.6 Tests and limits
+### 17.6 Tests and limits (history; see 17.0 for the current tests)
 - Unit: `tests/unit/ai/client.test.ts` (15: repair, retry limits, no quota retries, timeout, logging without content, mock),
   `gemini.test.ts` (5: key in header, model-name injection, error mapping, end-to-end repair), `rules.test.ts` (22),
   `service.test.tsx` (20: authorization before any model call, duplicate/stale handling, quota fallback, invalid output never saved,
@@ -1013,7 +1049,7 @@ Migration `20261022000006_communications.sql` (+ booking parts in 0011); module 
 - Recipients are an **audience** (invited, registered, accepted, waitlisted, confirmed, checked-in, everyone holding a place, one person) resolved
   in SQL (`communication_recipients`), never chosen by a model. Withdrawn people are always excluded.
 - Placeholders `{{name}}`, `{{event_name}}`, `{{event_date}}`, `{{event_city}}` are filled per recipient in code (`personalize`).
-- **AI drafting** (`draft_message` pipeline, Gemini over REST or the mock): input = event name/status, kind, audience label and the organizer's notes;
+- **Drafting** (until 2026-10-23 an AI pipeline; now `templateDraft()` in `comms/templates.ts`, no model): former description — input = event name/status, kind, audience label and the organizer's notes;
   **no attendee data**. Output is Zod-validated and checked (only known placeholders, no links, no "permit approved"/"venue confirmed" claims);
   one repair turn, then discarded. A valid result is saved as a **draft** (`drafted_by = ai`, `ai_run_id`, `is_mock_draft`). AI can't request
   approval or send. `start_ai_run` was extended so drafting works for live/completed/cancelled events (not archived).
@@ -1107,8 +1143,8 @@ contacted. Pieces: migration `20261022000008_recovery.sql` (written by an interr
 |---|---|
 | 1 record disruption + timestamp | `incidents` row (`simulated_at`, `note`, audit insert) |
 | 2–4 affected booking, tasks, services, compliance | `recovery_impact()` (SQL, deterministic, stored as `incidents.impact`) |
-| 5 ask Gemini | `generateRecovery` → `runPipeline` (pipeline `recovery`) → Gemini REST adapter, or the mock (`AI_PROVIDER`) |
-| 6 validate | Zod `RecoveryProposal` + `validateProposal` (rules.ts) + one repair turn; then `save_recovery_plan` repeats the id checks in SQL |
+| 5 build the proposal | `generateRecovery` → `deterministicProposal()` (rules + playbook guidance), recorded as a `playbook` run (no model since 2026-10-23) |
+| 6 validate | `validateProposal` (rules.ts); then `save_recovery_plan` repeats the id checks in SQL |
 | 7 show original plan, affected items, changes, questions | incident page §1 (snapshot), §2 (options, timeline, unresolved questions, risks), §3 (changes) |
 | 8 drafts | `recovery_inquiries` (provider) and a `communications` draft (`venue_update`, linked by `recovery_plan_id`) |
 | 9 approvals | `approvals` gate: `apply_recovery` (selected changes), `send_provider_inquiry`, and the normal `send_communication` |
@@ -1131,7 +1167,7 @@ contacted. Pieces: migration `20261022000008_recovery.sql` (written by an interr
 (partial unique index). The key is derived server-side as `sim:<bookingId>:<number of earlier incidents of that booking>`, so a double click or retry
 is one incident and a later re-run after closing gets a fresh key. One proposal per AI run (`recovery_plans_one_per_run`); one open proposal per incident.
 
-### 23.4 What the model may and may not do
+### 23.4 What the proposal may and may not do (a model no longer writes it; the same limits apply to the rules)
 Output (`RecoveryProposal`, flat for Gemini's schema subset): summary, 1–3 options, recommended option, timeline, task due-date changes, new tasks, review notes,
 provider inquiries, attendee update, unresolved questions, risks. **There is no field that cancels, rebooks or confirms anything** and
 `recovery_changes.kind` is CHECKed to `reschedule_task | add_task | flag_review`. `validateProposal` rejects (and asks the model once to repair): ids outside the
@@ -1202,14 +1238,14 @@ Every external-data result is `IntegrationResult<T>` with `Provenance` (provider
 
 | Integration | Modes | State |
 |---|---|---|
-| Gemini | `mock` (default) / `gemini` | adapter built (§17), **never called live** |
+| AI | none | removed 2026-10-23: planning, drafts and recovery are rule-based (§17.0) |
 | Email | `mock` / `resend` | adapter built (§21), **never called live** |
 | Weather | `mock` / `open-meteo` | the one narrow live integration (no key); tested with a fake `fetch` only; **no UI uses it yet** |
 | Places | `mock` / `none` / `google` | mock only; `google` returns an honest "not implemented" error, never mock data |
 | Official sources | `mock` / none | mock fixture only; nothing monitors any portal |
 
 Rules: discovery results carry `availability: "unknown"` (a lead, not availability); a forecast is planning context, not a weather warning (`FORECAST_DISCLAIMER`); a source snapshot is never evidence that a requirement is verified (§19).
-Mock mode: startup logs which integrations are mock (`src/instrumentation.ts`); `/status` and results show it.
+Test mode (mock integrations): startup logs which ones are mocked (`src/instrumentation.ts`); a short banner tells users, and `/status` (admins) lists them.
 
 **Security measures:** response headers + CSP in `next.config.ts` (CSP keeps `script-src 'unsafe-inline'`, see the comment there); Server Action body limit 256 kb; `poweredByHeader` off;
 per-user AI burst limit (6/min, in-memory) in front of the SQL hourly cap (20/h); production start fails on an invalid environment (names only); `npm run db:reset` needs `--yes` and a local URL;

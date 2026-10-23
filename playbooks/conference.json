@@ -1,0 +1,1437 @@
+{
+  "$comment": "HalaEvents playbook for conferences and seminars. Validated by PlaybookSchema (src/modules/planning/playbook.ts). Text is planning guidance written by the HalaEvents team, not legal advice or verified sources; budget amounts are illustrative allowances, not quotes.",
+  "id": "conference",
+  "version": 1,
+  "eventType": "conference",
+  "title": "Conference or seminar",
+  "referenceCurrency": "AED",
+  "summary": "{{event.name}} is a conference lasting {{event.duration_hours}} for about {{event.capacity}} attendees ({{program.tracks}}; audience: {{audience.kind}}; city: {{event.city}}).",
+  "questions": [
+    {
+      "key": "audience.kind",
+      "type": "single_choice",
+      "text": "Who is the conference for?",
+      "why": "Decides the invitation list, tone, ticketing and whether public-event checks apply.",
+      "required": true,
+      "when": [],
+      "options": [
+        {
+          "value": "students",
+          "label": "Students"
+        },
+        {
+          "value": "professionals",
+          "label": "Industry professionals"
+        },
+        {
+          "value": "mixed",
+          "label": "A mixed audience"
+        },
+        {
+          "value": "public",
+          "label": "Open to the public"
+        }
+      ]
+    },
+    {
+      "key": "program.tracks",
+      "type": "number",
+      "text": "How many parallel tracks or rooms will run at once?",
+      "why": "Sets the number of rooms, chairs, volunteers and AV set-ups.",
+      "required": true,
+      "when": [],
+      "min": 1,
+      "max": 12,
+      "unit": "tracks"
+    },
+    {
+      "key": "program.speakers",
+      "type": "number",
+      "text": "How many speakers do you expect?",
+      "why": "Drives the call for speakers, speaker care and the agenda length.",
+      "required": true,
+      "when": [],
+      "min": 0,
+      "max": 200,
+      "unit": "speakers"
+    },
+    {
+      "key": "program.keynote",
+      "type": "boolean",
+      "text": "Is there a keynote speaker or guest of honour?",
+      "why": "Adds keynote confirmation and protocol tasks.",
+      "required": true,
+      "when": []
+    },
+    {
+      "key": "international.speakers",
+      "type": "boolean",
+      "text": "Will any speakers travel from abroad?",
+      "why": "Adds travel, visa and accommodation tasks.",
+      "required": true,
+      "when": [
+        {
+          "key": "program.speakers",
+          "op": "gte",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "key": "venue.status",
+      "type": "single_choice",
+      "text": "Where does the venue booking stand?",
+      "why": "Decides how urgent the venue tasks are.",
+      "required": true,
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ],
+      "options": [
+        {
+          "value": "confirmed_in_writing",
+          "label": "Confirmed in writing"
+        },
+        {
+          "value": "requested",
+          "label": "Requested, not confirmed"
+        },
+        {
+          "value": "not_started",
+          "label": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "online.platform",
+      "type": "text",
+      "text": "Which online or hybrid platform will you use?",
+      "why": "Used to plan the technical rehearsal.",
+      "required": false,
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "in",
+          "values": ["online", "hybrid"]
+        }
+      ],
+      "maxLength": 100
+    },
+    {
+      "key": "registration.ticketed",
+      "type": "boolean",
+      "text": "Will attendees pay or need a ticket?",
+      "why": "Adds ticketing, payment and refund-policy tasks.",
+      "required": true,
+      "when": []
+    },
+    {
+      "key": "catering.provided",
+      "type": "boolean",
+      "text": "Will you provide food and drink?",
+      "why": "Adds catering tasks and budget lines.",
+      "required": true,
+      "when": []
+    },
+    {
+      "key": "catering.dietary",
+      "type": "multi_choice",
+      "text": "Which dietary needs must the menu cover?",
+      "why": "Goes into the catering brief.",
+      "required": false,
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "options": [
+        {
+          "value": "halal",
+          "label": "Halal"
+        },
+        {
+          "value": "vegetarian",
+          "label": "Vegetarian"
+        },
+        {
+          "value": "vegan",
+          "label": "Vegan"
+        },
+        {
+          "value": "gluten_free",
+          "label": "Gluten free"
+        },
+        {
+          "value": "nut_free",
+          "label": "Nut free"
+        }
+      ]
+    },
+    {
+      "key": "sponsors.expected",
+      "type": "boolean",
+      "text": "Do you expect sponsors?",
+      "why": "Adds sponsor outreach and branding tasks.",
+      "required": true,
+      "when": []
+    },
+    {
+      "key": "exhibition.booths",
+      "type": "boolean",
+      "text": "Will there be exhibition booths or a poster session?",
+      "why": "Adds floor planning, power and booking tasks.",
+      "required": true,
+      "when": []
+    },
+    {
+      "key": "media.recording",
+      "type": "boolean",
+      "text": "Will sessions be recorded or live-streamed?",
+      "why": "Adds recording, release and storage tasks.",
+      "required": true,
+      "when": []
+    },
+    {
+      "key": "media.consent",
+      "type": "single_choice",
+      "text": "How will you get speaker and attendee consent for recording?",
+      "why": "Consent should be agreed before the event.",
+      "required": true,
+      "when": [
+        {
+          "key": "media.recording",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "options": [
+        {
+          "value": "speaker_release",
+          "label": "Speaker release form and a notice to attendees"
+        },
+        {
+          "value": "registration_notice",
+          "label": "Notice at registration only"
+        },
+        {
+          "value": "not_decided",
+          "label": "Not decided yet"
+        }
+      ]
+    },
+    {
+      "key": "accessibility.ask_needs",
+      "type": "boolean",
+      "text": "Will you ask attendees about accessibility needs at registration?",
+      "why": "Adds an accessibility support task.",
+      "required": true,
+      "when": []
+    }
+  ],
+  "goals": [
+    {
+      "text": "Deliver a programme that attendees find relevant, on time and well hosted."
+    },
+    {
+      "text": "Keep costs inside the budget and attendance close to the {{event.capacity}} you expect."
+    },
+    {
+      "text": "Secure sponsors who help cover costs.",
+      "when": [
+        {
+          "key": "sponsors.expected",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "text": "Make speakers' travel and stay smooth.",
+      "when": [
+        {
+          "key": "international.speakers",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "text": "A programme with {{program.speakers}} speakers across {{program.tracks}}, published before registration closes."
+    },
+    {
+      "text": "Rooms, seating and AV for about {{event.capacity}} people.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "text": "A tested online or hybrid platform with a technical rehearsal.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "in",
+          "values": ["online", "hybrid"]
+        }
+      ]
+    },
+    {
+      "text": "Ticketing with a clear price and refund policy.",
+      "when": [
+        {
+          "key": "registration.ticketed",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "text": "Recording consent agreed ({{media.consent}}) before any session is recorded.",
+      "when": [
+        {
+          "key": "media.recording",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "text": "A floor plan and power for exhibition booths.",
+      "when": [
+        {
+          "key": "exhibition.booths",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "text": "Food and drink covering: {{catering.dietary}}.",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "text": "Registration, name badges and a help desk."
+    }
+  ],
+  "assumptions": [
+    {
+      "text": "The audience is a mixed group of professionals and students.",
+      "ifMissing": "audience.kind"
+    },
+    {
+      "text": "One main room with a single track.",
+      "ifMissing": "program.tracks"
+    },
+    {
+      "text": "The venue is not yet confirmed.",
+      "ifMissing": "venue.status",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "text": "Speakers present in person and in English."
+    }
+  ],
+  "decisions": [
+    {
+      "text": "Choose the theme and call for speakers."
+    },
+    {
+      "text": "Decide whether attendance is paid.",
+      "ifMissing": "registration.ticketed"
+    },
+    {
+      "text": "Decide whether sessions will be recorded.",
+      "ifMissing": "media.recording"
+    }
+  ],
+  "budgetLines": [
+    {
+      "key": "venue",
+      "name": "Venue hire",
+      "basis": "fixed",
+      "unitAmount": 12000,
+      "note": "Rooms for the programme.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ],
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "event.capacity",
+              "op": "gte",
+              "value": 300
+            }
+          ],
+          "multiplier": 2
+        },
+        {
+          "when": [
+            {
+              "key": "event.capacity",
+              "op": "gte",
+              "value": 800
+            }
+          ],
+          "multiplier": 1.5
+        }
+      ]
+    },
+    {
+      "key": "av",
+      "name": "Audio-visual",
+      "basis": "fixed",
+      "unitAmount": 4000,
+      "note": "Per track.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ],
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "program.tracks",
+              "op": "gte",
+              "value": 2
+            }
+          ],
+          "multiplier": 1.6
+        },
+        {
+          "when": [
+            {
+              "key": "program.tracks",
+              "op": "gte",
+              "value": 4
+            }
+          ],
+          "multiplier": 1.5
+        }
+      ]
+    },
+    {
+      "key": "platform",
+      "name": "Online platform",
+      "basis": "fixed",
+      "unitAmount": 1500,
+      "note": "Streaming and registration tools.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "in",
+          "values": ["online", "hybrid"]
+        }
+      ]
+    },
+    {
+      "key": "catering",
+      "name": "Food and drink",
+      "basis": "per_attendee",
+      "unitAmount": 80,
+      "note": "",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "speakers",
+      "name": "Speaker costs",
+      "basis": "fixed",
+      "unitAmount": 6000,
+      "note": "Travel and hospitality for invited speakers.",
+      "when": [
+        {
+          "key": "international.speakers",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "recording",
+      "name": "Recording and streaming",
+      "basis": "fixed",
+      "unitAmount": 3000,
+      "note": "",
+      "when": [
+        {
+          "key": "media.recording",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "print",
+      "name": "Badges, signage and printing",
+      "basis": "per_attendee",
+      "unitAmount": 12,
+      "note": "",
+      "when": []
+    },
+    {
+      "key": "reserve",
+      "name": "Reserve",
+      "basis": "fixed",
+      "unitAmount": 3000,
+      "note": "For costs nobody planned for.",
+      "when": []
+    }
+  ],
+  "schedule": [
+    {
+      "key": "reg",
+      "title": "Registration and coffee",
+      "from": "start",
+      "offsetMinutes": 0,
+      "durationMinutes": 60,
+      "note": "",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "key": "online_open",
+      "title": "Platform opens and sound check",
+      "from": "start",
+      "offsetMinutes": 0,
+      "durationMinutes": 30,
+      "note": "",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "equals",
+          "value": "online"
+        }
+      ]
+    },
+    {
+      "key": "opening",
+      "title": "Opening remarks",
+      "from": "start",
+      "offsetMinutes": 60,
+      "durationMinutes": 30,
+      "note": "",
+      "when": []
+    },
+    {
+      "key": "keynote",
+      "title": "Keynote",
+      "from": "start",
+      "offsetMinutes": 90,
+      "durationMinutes": 60,
+      "note": "",
+      "when": [
+        {
+          "key": "program.keynote",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "sessions1",
+      "title": "Morning sessions",
+      "from": "start",
+      "offsetMinutes": 150,
+      "durationMinutes": 90,
+      "note": "Run {{program.tracks}} in parallel.",
+      "when": []
+    },
+    {
+      "key": "lunch",
+      "title": "Lunch and networking",
+      "from": "start",
+      "offsetMinutes": 270,
+      "durationMinutes": 60,
+      "note": "Check dietary needs: {{catering.dietary}}.",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        },
+        {
+          "key": "event.duration_hours",
+          "op": "gte",
+          "value": 6
+        }
+      ]
+    },
+    {
+      "key": "sessions2",
+      "title": "Afternoon sessions",
+      "from": "start",
+      "offsetMinutes": 330,
+      "durationMinutes": 120,
+      "note": "",
+      "when": [
+        {
+          "key": "event.duration_hours",
+          "op": "gte",
+          "value": 7
+        }
+      ]
+    },
+    {
+      "key": "break",
+      "title": "Coffee break",
+      "from": "start",
+      "offsetMinutes": 450,
+      "durationMinutes": 30,
+      "note": "",
+      "when": [
+        {
+          "key": "event.duration_hours",
+          "op": "gte",
+          "value": 8
+        }
+      ]
+    },
+    {
+      "key": "exhibit",
+      "title": "Exhibition and poster time",
+      "from": "start",
+      "offsetMinutes": 330,
+      "durationMinutes": 60,
+      "note": "",
+      "when": [
+        {
+          "key": "exhibition.booths",
+          "op": "equals",
+          "value": true
+        },
+        {
+          "key": "event.duration_hours",
+          "op": "gte",
+          "value": 7
+        }
+      ]
+    },
+    {
+      "key": "closing",
+      "title": "Closing remarks and thanks",
+      "from": "end",
+      "offsetMinutes": 0,
+      "durationMinutes": 30,
+      "note": "",
+      "when": []
+    },
+    {
+      "key": "reception",
+      "title": "Networking reception",
+      "from": "end",
+      "offsetMinutes": 30,
+      "durationMinutes": 60,
+      "note": "",
+      "when": [
+        {
+          "key": "event.duration_hours",
+          "op": "gte",
+          "value": 10
+        }
+      ]
+    }
+  ],
+  "riskCategories": [
+    {
+      "key": "venue",
+      "label": "Venue and rooms",
+      "description": "The venue isn't confirmed or doesn't fit the programme.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ],
+      "mitigation": "Confirm the rooms in writing and check capacity for each track.",
+      "contingency": "Keep a backup venue or move low-attendance sessions online.",
+      "likelihood": "medium",
+      "elevatedWhen": [
+        {
+          "key": "venue.status",
+          "op": "in",
+          "values": ["requested", "not_started"]
+        }
+      ]
+    },
+    {
+      "key": "speakers",
+      "label": "Speaker drop-outs",
+      "description": "A speaker cancels or can't travel.",
+      "when": [
+        {
+          "key": "program.speakers",
+          "op": "gte",
+          "value": 1
+        }
+      ],
+      "mitigation": "Confirm speakers in writing and keep a reserve list.",
+      "contingency": "Keep a moderator-led panel ready to fill a gap.",
+      "likelihood": "medium",
+      "elevatedWhen": [
+        {
+          "key": "international.speakers",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "technology",
+      "label": "Audio-visual and connectivity",
+      "description": "Projectors, microphones, Wi-Fi or the stream fail.",
+      "when": [],
+      "mitigation": "Run a technical rehearsal in each room or on the platform.",
+      "contingency": "Have spare microphones and a technician on call.",
+      "likelihood": "medium",
+      "elevatedWhen": [
+        {
+          "key": "program.tracks",
+          "op": "gte",
+          "value": 3
+        }
+      ]
+    },
+    {
+      "key": "attendance",
+      "label": "Attendance below or above plan",
+      "description": "Fewer or more people than the {{event.capacity}} you plan for.",
+      "when": [],
+      "mitigation": "Track registrations weekly and adjust catering and rooms.",
+      "contingency": "Agree the final catering numbers a few days before.",
+      "likelihood": "medium",
+      "elevatedWhen": []
+    },
+    {
+      "key": "food",
+      "label": "Food safety and dietary needs",
+      "description": "Allergies and dietary requirements.",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "mitigation": "Ask about dietary needs at registration and label allergens.",
+      "contingency": "Keep simple allergen-free options.",
+      "likelihood": "low",
+      "elevatedWhen": [
+        {
+          "key": "catering.dietary",
+          "op": "includes",
+          "value": "nut_free"
+        }
+      ]
+    },
+    {
+      "key": "consent",
+      "label": "Recording consent",
+      "description": "Recording without proper agreement.",
+      "when": [
+        {
+          "key": "media.recording",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "mitigation": "Get speaker releases and show a notice to attendees.",
+      "contingency": "Stop recording any session whose speaker has not agreed.",
+      "likelihood": "medium",
+      "elevatedWhen": [
+        {
+          "key": "media.consent",
+          "op": "equals",
+          "value": "not_decided"
+        }
+      ]
+    },
+    {
+      "key": "finance",
+      "label": "Budget",
+      "description": "Costs grow faster than income.",
+      "when": [],
+      "mitigation": "Track spending against the budget each week.",
+      "contingency": "Keep a reserve and a list of items to cut first.",
+      "likelihood": "medium",
+      "elevatedWhen": []
+    }
+  ],
+  "requiredForPlan": [
+    {
+      "key": "event.city",
+      "label": "The event's city (edit the event)",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "key": "audience.kind",
+      "label": "Who the conference is for",
+      "when": []
+    },
+    {
+      "key": "program.tracks",
+      "label": "How many parallel tracks run",
+      "when": []
+    },
+    {
+      "key": "venue.status",
+      "label": "Where the venue booking stands",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "key": "catering.provided",
+      "label": "Whether food is provided",
+      "when": []
+    }
+  ],
+  "complianceTopics": [
+    {
+      "key": "event_permit",
+      "title": "Event permit or activity approval",
+      "description": "Public or ticketed events may need an approval from the relevant authority. Check whether this one does.",
+      "confidence": "conditional",
+      "sourceRequirement": "official_source_required",
+      "when": [
+        {
+          "key": "audience.kind",
+          "op": "in",
+          "values": ["public", "mixed"]
+        }
+      ]
+    },
+    {
+      "key": "venue_policy",
+      "title": "Venue rules",
+      "description": "The venue may have rules on capacity, sound, catering and branding.",
+      "confidence": "recommended",
+      "sourceRequirement": "institution_policy",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "key": "recording_consent",
+      "title": "Recording and photo consent",
+      "description": "Agree how consent is collected before recording speakers or attendees.",
+      "confidence": "recommended",
+      "sourceRequirement": "organizer_decision",
+      "when": [
+        {
+          "key": "media.recording",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "food_safety",
+      "title": "Food safety",
+      "description": "Check the caterer's licensing and allergen handling.",
+      "confidence": "conditional",
+      "sourceRequirement": "official_source_required",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "providerCategories": [
+    {
+      "category": "venue",
+      "reason": "The event needs a venue.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "category": "catering",
+      "reason": "Food and drink are provided.",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "category": "av",
+      "reason": "Sessions need screens, sound and microphones.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "category": "photography",
+      "reason": "Sessions will be recorded.",
+      "when": [
+        {
+          "key": "media.recording",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "taskTemplates": [
+    {
+      "key": "define_program",
+      "title": "Define the programme and theme",
+      "description": "Agree the theme, number of tracks ({{program.tracks}}), session formats and target audience ({{audience.kind}}).",
+      "category": "staffing",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -120
+      },
+      "ownerRole": "Programme chair",
+      "dependsOn": [],
+      "when": [],
+      "requiredInfo": ["program.tracks", "audience.kind"],
+      "risks": [],
+      "nextAction": "Hold a kickoff meeting and write the theme and format down.",
+      "adjustments": []
+    },
+    {
+      "key": "set_budget",
+      "title": "Set the budget",
+      "description": "Turn the programme into a budget for venue, AV, food, speakers and a reserve.",
+      "category": "finance",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -110
+      },
+      "ownerRole": "Treasurer",
+      "dependsOn": ["define_program"],
+      "when": [],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "List expected income and costs in one sheet.",
+      "adjustments": []
+    },
+    {
+      "key": "secure_venue",
+      "title": "Secure the venue",
+      "description": "Shortlist venues that fit {{event.capacity}} people and the room layout, then ask for written confirmation of rooms and dates.",
+      "category": "venue",
+      "priority": "critical",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -100
+      },
+      "ownerRole": "Venue lead",
+      "dependsOn": ["set_budget"],
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ],
+      "requiredInfo": ["venue.status"],
+      "risks": [],
+      "nextAction": "Request availability and terms from two venues in writing.",
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "event.capacity",
+              "op": "gte",
+              "value": 300
+            }
+          ],
+          "note": "At this size few venues are free: start early.",
+          "priority": "critical"
+        }
+      ]
+    },
+    {
+      "key": "setup_online_platform",
+      "title": "Set up the online or hybrid platform",
+      "description": "Choose the platform, test streaming and Q&A, and plan a technical rehearsal.",
+      "category": "technology",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -30
+      },
+      "ownerRole": "Technology lead",
+      "dependsOn": ["define_program"],
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "in",
+          "values": ["online", "hybrid"]
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Run a test session with speakers.",
+      "adjustments": []
+    },
+    {
+      "key": "call_for_speakers",
+      "title": "Open the call for speakers",
+      "description": "Publish the call, collect proposals and agree selection criteria.",
+      "category": "communications",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -100
+      },
+      "ownerRole": "Programme chair",
+      "dependsOn": ["define_program"],
+      "when": [
+        {
+          "key": "program.speakers",
+          "op": "gte",
+          "value": 1
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Publish the call with a deadline and criteria.",
+      "adjustments": []
+    },
+    {
+      "key": "confirm_keynote",
+      "title": "Confirm the keynote",
+      "description": "Invite and confirm the keynote speaker; agree the topic, fee (if any) and protocol.",
+      "category": "staffing",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -90
+      },
+      "ownerRole": "Programme chair",
+      "dependsOn": ["call_for_speakers"],
+      "when": [
+        {
+          "key": "program.keynote",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Send a written invitation and keep a backup name.",
+      "adjustments": []
+    },
+    {
+      "key": "speaker_logistics",
+      "title": "Arrange speaker travel and accommodation",
+      "description": "Plan travel, visa letters and accommodation for speakers from abroad.",
+      "category": "logistics",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -45
+      },
+      "ownerRole": "Speaker liaison",
+      "dependsOn": ["call_for_speakers"],
+      "when": [
+        {
+          "key": "international.speakers",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Ask each speaker for travel dates and visa needs.",
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "program.speakers",
+              "op": "gte",
+              "value": 20
+            }
+          ],
+          "shiftDays": -14,
+          "note": "Many travelling speakers: start earlier."
+        }
+      ]
+    },
+    {
+      "key": "sponsor_outreach",
+      "title": "Approach sponsors",
+      "description": "Prepare a sponsor pack and contact likely sponsors.",
+      "category": "sponsorship",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -100
+      },
+      "ownerRole": "Sponsorship lead",
+      "dependsOn": ["set_budget"],
+      "when": [
+        {
+          "key": "sponsors.expected",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Draft a one-page sponsor pack with packages.",
+      "adjustments": []
+    },
+    {
+      "key": "ticketing_setup",
+      "title": "Set up ticketing and payments",
+      "description": "Set prices, payment method and refund policy.",
+      "category": "finance",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -80
+      },
+      "ownerRole": "Treasurer",
+      "dependsOn": ["set_budget"],
+      "when": [
+        {
+          "key": "registration.ticketed",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Write the refund policy before opening sales.",
+      "adjustments": []
+    },
+    {
+      "key": "open_registration",
+      "title": "Open registration",
+      "description": "Publish a registration page with the programme and key dates.",
+      "category": "registration",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -75
+      },
+      "ownerRole": "Registration lead",
+      "dependsOn": ["define_program"],
+      "when": [],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Publish the page and test the sign-up flow.",
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "event.capacity",
+              "op": "gte",
+              "value": 500
+            }
+          ],
+          "shiftDays": -20,
+          "note": "Open early to reach a large audience."
+        }
+      ]
+    },
+    {
+      "key": "publish_agenda",
+      "title": "Publish the agenda",
+      "description": "Publish the final agenda and speaker biographies.",
+      "category": "communications",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -21
+      },
+      "ownerRole": "Programme chair",
+      "dependsOn": ["call_for_speakers"],
+      "when": [
+        {
+          "key": "program.speakers",
+          "op": "gte",
+          "value": 1
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Confirm every speaker's slot before publishing.",
+      "adjustments": []
+    },
+    {
+      "key": "av_plan",
+      "title": "Plan audio-visual for each room",
+      "description": "List microphones, screens, recording and a technician for each room ({{program.tracks}}).",
+      "category": "technology",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -30
+      },
+      "ownerRole": "Technology lead",
+      "dependsOn": ["define_program"],
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Send the AV list to the venue or supplier for a quote.",
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "program.tracks",
+              "op": "gte",
+              "value": 3
+            }
+          ],
+          "priority": "critical",
+          "note": "Several parallel rooms need dedicated technicians."
+        }
+      ]
+    },
+    {
+      "key": "book_catering",
+      "title": "Book catering",
+      "description": "Agree menus, numbers and service times, including: {{catering.dietary}}.",
+      "category": "catering",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -35
+      },
+      "ownerRole": "Catering lead",
+      "dependsOn": ["set_budget"],
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Ask two caterers for a quote.",
+      "adjustments": []
+    },
+    {
+      "key": "exhibition_plan",
+      "title": "Plan the exhibition area",
+      "description": "Design the floor plan, power, and the booking process for booths or posters.",
+      "category": "logistics",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -40
+      },
+      "ownerRole": "Exhibition lead",
+      "dependsOn": ["define_program"],
+      "when": [
+        {
+          "key": "exhibition.booths",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Draw the floor plan and booking terms.",
+      "adjustments": []
+    },
+    {
+      "key": "recording_plan",
+      "title": "Plan recording and releases",
+      "description": "Choose recording equipment, prepare speaker release forms and decide where recordings are stored.",
+      "category": "technology",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -30
+      },
+      "ownerRole": "Technology lead",
+      "dependsOn": ["define_program"],
+      "when": [
+        {
+          "key": "media.recording",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": ["media.consent"],
+      "risks": [],
+      "nextAction": "Draft the release form and a notice for attendees.",
+      "adjustments": []
+    },
+    {
+      "key": "accessibility_plan",
+      "title": "Plan accessibility support",
+      "description": "Collect accessibility needs and check access to rooms and materials.",
+      "category": "logistics",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -30
+      },
+      "ownerRole": "Participant experience lead",
+      "dependsOn": ["open_registration"],
+      "when": [
+        {
+          "key": "accessibility.ask_needs",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Add an optional accessibility question to registration.",
+      "adjustments": []
+    },
+    {
+      "key": "safety_plan",
+      "title": "Prepare the safety plan",
+      "description": "Agree first aid, emergency contacts, exits and who is in charge on the day.",
+      "category": "safety",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -14
+      },
+      "ownerRole": "Operations lead",
+      "dependsOn": ["secure_venue"],
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Walk through the venue with its safety contact.",
+      "adjustments": []
+    },
+    {
+      "key": "attendee_comms",
+      "title": "Send the attendee briefing",
+      "description": "Share the agenda, location or link, arrival time and what to bring.",
+      "category": "communications",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -3
+      },
+      "ownerRole": "Communications lead",
+      "dependsOn": ["open_registration"],
+      "when": [],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Send the briefing after registration closes.",
+      "adjustments": []
+    },
+    {
+      "key": "run_of_show",
+      "title": "Prepare the run of show",
+      "description": "Write the minute-by-minute plan and brief staff and volunteers.",
+      "category": "staffing",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -2
+      },
+      "ownerRole": "Operations lead",
+      "dependsOn": ["attendee_comms", "av_plan"],
+      "when": [],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Brief everyone and share a contact list.",
+      "adjustments": []
+    },
+    {
+      "key": "closeout",
+      "title": "Close out the event",
+      "description": "Thank speakers and sponsors, pay suppliers, send a feedback survey and record lessons learned.",
+      "category": "closeout",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_end",
+        "offsetDays": 7
+      },
+      "ownerRole": "Lead organizer",
+      "dependsOn": ["run_of_show"],
+      "when": [],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Send thank-you messages and the survey.",
+      "adjustments": []
+    }
+  ]
+}

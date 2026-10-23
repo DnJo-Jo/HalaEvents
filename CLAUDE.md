@@ -18,10 +18,13 @@ HalaEvents is an AI-assisted, approval-driven event planning and operations plat
   Only `NEXT_PUBLIC_*` variables may be read in client code, and none of them may be secret.
 - Never commit `.env`, `.env.local`, keys, tokens, or real attendee data. `.env.example` holds names only.
 - Validate every untrusted input (request bodies, query params, webhooks, retrieved web content,
-  **and every model output**) with Zod before use.
-- AI output is a **suggestion**. It is stored as `proposed`/draft and only becomes authoritative
+  **and every generated plan**) with Zod and the deterministic rules before use.
+- **No external AI API.** Planning, message drafts and recovery proposals come from the deterministic playbook engine
+  (`src/modules/planning/engine.ts`, playbooks in `/playbooks`). Do not add an AI SDK, provider, key or `AI_*` env variable
+  (ESLint and `tests/unit/planning/engine.test.ts` enforce it). The `ai_*` table names are historical.
+- Generated plans are a **suggestion**. They are stored as `proposed`/draft and only become authoritative
   after a deterministic rule check and, where required, organizer acceptance.
-- AI must never mark a requirement as `verified_source`, change attendee status, send messages,
+- Generated content must never mark a requirement as `verified_source`, change attendee status, send messages,
   accept quotes, or confirm bookings.
 - Consequential actions (sending external messages, accepting quotes, cancelling bookings,
   applying a re-plan) go through the `approvals` gate and are written to `audit_log`.
@@ -30,6 +33,7 @@ HalaEvents is an AI-assisted, approval-driven event planning and operations plat
 - Never claim a permit was filed/approved, a venue is available, or a booking is confirmed unless a
   real party (provider user or integration) returned that result.
 - Unavailable integrations run in clearly labelled **mock mode**; mock results carry `is_mock = true`.
+- User-facing text is organizer-friendly: no provider names, diagnostics, env-var names or implementation notes in the UI.
 - Prefer no new dependency. Adding one requires a one-line justification in the PR / PROGRESS.md.
 
 ## Code conventions

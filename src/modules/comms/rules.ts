@@ -4,7 +4,7 @@ import type {
   CommunicationKind,
   CommunicationStatus,
   DeliveryStatus,
-  MessageDraftOutput,
+  MessageDraft,
 } from "./schemas";
 
 /**
@@ -34,8 +34,8 @@ const FORBIDDEN_CLAIMS = [
   /\b(venue|booking|caterer|provider)\b[^.]{0,40}\b(is|has been|are)\s+(confirmed|booked|guaranteed)\b/i,
 ];
 
-/** Business checks on an AI draft (errors are fed back to the model in one repair turn). */
-export function aiDraftErrors(d: MessageDraftOutput): string[] {
+/** Business checks on a drafted message before it is saved. */
+export function draftErrors(d: MessageDraft): string[] {
   const errors: string[] = [];
   const text = `${d.subject}\n${d.body}`;
   const unknown = unknownPlaceholders(text);
@@ -100,7 +100,7 @@ export const COMM_STATUS_LABELS: Record<CommunicationStatus, string> = {
 
 /** Delivery labels never overstate: acceptance by an API is not delivery, and mock is not sent. */
 export const DELIVERY_LABELS: Record<DeliveryStatus, string> = {
-  simulated: "Simulated — not sent (mock)",
+  simulated: "Test delivery — not sent",
   accepted: "Accepted by the email provider — delivery not confirmed",
   failed: "Failed",
   delivered: "Delivered (reported by provider)",

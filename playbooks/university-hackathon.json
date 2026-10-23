@@ -1,7 +1,7 @@
 {
-  "$comment": "HalaEvents playbook. Validated by PlaybookSchema (src/modules/ai/playbook.ts). The 'why' and description texts are planning prompts written by the HalaEvents team, not legal requirements or verified sources. Bump 'version' when a question's meaning changes.",
+  "$comment": "HalaEvents playbook. Validated by PlaybookSchema (src/modules/planning/playbook.ts). The 'why' and description texts are planning prompts written by the HalaEvents team, not legal requirements or verified sources. Bump 'version' when a question's meaning changes. Goals, requirements, assumptions, decisions, budget lines and the schedule are decision tables read by src/modules/planning/engine.ts; budget amounts are illustrative planning allowances, not quotes.",
   "id": "university-hackathon",
-  "version": 2,
+  "version": 3,
   "eventType": "university_hackathon",
   "title": "University hackathon",
   "recovery": {
@@ -436,7 +436,8 @@
       "when": [],
       "requiredInfo": ["format.team_size"],
       "risks": [],
-      "nextAction": "Hold a kickoff meeting and write down the theme and format."
+      "nextAction": "Hold a kickoff meeting and write down the theme and format.",
+      "adjustments": []
     },
     {
       "key": "set_budget",
@@ -453,7 +454,8 @@
       "when": [],
       "requiredInfo": [],
       "risks": [],
-      "nextAction": "Draft budget lines and get sign-off from the sponsor or department."
+      "nextAction": "Draft budget lines and get sign-off from the sponsor or department.",
+      "adjustments": []
     },
     {
       "key": "book_campus_venue",
@@ -476,7 +478,20 @@
       ],
       "requiredInfo": ["venue.on_campus", "venue.campus_booking"],
       "risks": ["venue"],
-      "nextAction": "Send the booking request to the facilities office with dates and expected attendance."
+      "nextAction": "Send the booking request to the facilities office with dates and expected attendance.",
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "event.capacity",
+              "op": "gte",
+              "value": 300
+            }
+          ],
+          "note": "Large rooms book out early at this size.",
+          "priority": "critical"
+        }
+      ]
     },
     {
       "key": "source_external_venue",
@@ -500,7 +515,20 @@
       "requiredInfo": [],
       "risks": ["venue"],
       "nextAction": "Shortlist venues in the marketplace and request quotes.",
-      "providerCategory": "venue"
+      "providerCategory": "venue",
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "event.capacity",
+              "op": "gte",
+              "value": 300
+            }
+          ],
+          "note": "Few venues fit this many people: start early.",
+          "priority": "critical"
+        }
+      ]
     },
     {
       "key": "setup_online_platform",
@@ -523,7 +551,8 @@
       ],
       "requiredInfo": ["online.platform"],
       "risks": ["technology"],
-      "nextAction": "Create a test room and run a joining test with two people."
+      "nextAction": "Create a test room and run a joining test with two people.",
+      "adjustments": []
     },
     {
       "key": "participant_agreement",
@@ -540,7 +569,8 @@
       "when": [],
       "requiredInfo": ["ip.ownership", "media.photography"],
       "risks": ["legal"],
-      "nextAction": "Draft the agreement and get it reviewed by the university or sponsor contact."
+      "nextAction": "Draft the agreement and get it reviewed by the university or sponsor contact.",
+      "adjustments": []
     },
     {
       "key": "guardian_consent",
@@ -563,7 +593,8 @@
       ],
       "requiredInfo": ["audience.min_age", "audience.guardian_consent"],
       "risks": ["minors"],
-      "nextAction": "Draft the consent form and agree with schools who collects it."
+      "nextAction": "Draft the consent form and agree with schools who collects it.",
+      "adjustments": []
     },
     {
       "key": "open_registration",
@@ -580,7 +611,20 @@
       "when": [],
       "requiredInfo": ["format.team_size", "accessibility.ask_needs"],
       "risks": [],
-      "nextAction": "Build the registration form and test it end to end."
+      "nextAction": "Build the registration form and test it end to end.",
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "event.capacity",
+              "op": "gte",
+              "value": 200
+            }
+          ],
+          "note": "Open early to fill a large event.",
+          "priority": "critical"
+        }
+      ]
     },
     {
       "key": "campus_access",
@@ -608,7 +652,8 @@
       ],
       "requiredInfo": [],
       "risks": ["venue"],
-      "nextAction": "Ask campus security what they need for visitor access."
+      "nextAction": "Ask campus security what they need for visitor access.",
+      "adjustments": []
     },
     {
       "key": "book_catering",
@@ -632,7 +677,31 @@
       "requiredInfo": ["catering.dietary"],
       "risks": ["food"],
       "nextAction": "Request quotes from two or three caterers in the marketplace.",
-      "providerCategory": "catering"
+      "providerCategory": "catering",
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "event.capacity",
+              "op": "gte",
+              "value": 200
+            }
+          ],
+          "shiftDays": -7,
+          "note": "With {{event.capacity}} people, book early and ask about volume pricing."
+        },
+        {
+          "when": [
+            {
+              "key": "format.overnight",
+              "op": "equals",
+              "value": true
+            }
+          ],
+          "priority": "critical",
+          "note": "An overnight event needs more than one meal."
+        }
+      ]
     },
     {
       "key": "overnight_plan",
@@ -656,7 +725,20 @@
       "requiredInfo": ["format.overnight_supervision"],
       "risks": ["safety", "minors"],
       "nextAction": "List overnight needs and confirm security cover with the venue.",
-      "providerCategory": "security"
+      "providerCategory": "security",
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "audience.level",
+              "op": "in",
+              "values": ["school_students", "mixed"]
+            }
+          ],
+          "priority": "critical",
+          "note": "Minors overnight needs named supervisors and parental agreement."
+        }
+      ]
     },
     {
       "key": "safety_plan",
@@ -673,7 +755,20 @@
       "when": [],
       "requiredInfo": [],
       "risks": ["safety"],
-      "nextAction": "Ask the venue for its emergency procedure and first-aid arrangements."
+      "nextAction": "Ask the venue for its emergency procedure and first-aid arrangements.",
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "audience.level",
+              "op": "in",
+              "values": ["school_students", "mixed"]
+            }
+          ],
+          "priority": "critical",
+          "note": "Minors are attending: supervision and safeguarding come first."
+        }
+      ]
     },
     {
       "key": "sponsor_outreach",
@@ -696,7 +791,20 @@
       ],
       "requiredInfo": [],
       "risks": ["finance"],
-      "nextAction": "Draft a one-page sponsor pack."
+      "nextAction": "Draft a one-page sponsor pack.",
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "prizes.offered",
+              "op": "equals",
+              "value": true
+            }
+          ],
+          "note": "Prizes need funding: start sponsor talks early.",
+          "priority": "high"
+        }
+      ]
     },
     {
       "key": "prizes_judging",
@@ -719,7 +827,20 @@
       ],
       "requiredInfo": ["prizes.kind"],
       "risks": ["finance"],
-      "nextAction": "Write the judging criteria and invite judges."
+      "nextAction": "Write the judging criteria and invite judges.",
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "prizes.kind",
+              "op": "includes",
+              "value": "cash"
+            }
+          ],
+          "priority": "high",
+          "note": "Cash prizes need a clear payment and tax arrangement."
+        }
+      ]
     },
     {
       "key": "photography",
@@ -743,7 +864,8 @@
       "requiredInfo": ["media.consent"],
       "risks": [],
       "nextAction": "Book a photographer or volunteer and share the consent list.",
-      "providerCategory": "photography"
+      "providerCategory": "photography",
+      "adjustments": []
     },
     {
       "key": "participant_comms",
@@ -760,7 +882,8 @@
       "when": [],
       "requiredInfo": [],
       "risks": [],
-      "nextAction": "Draft the briefing message (it is sent only after approval)."
+      "nextAction": "Draft the briefing message (it is sent only after approval).",
+      "adjustments": []
     },
     {
       "key": "run_of_show",
@@ -777,7 +900,8 @@
       "when": [],
       "requiredInfo": [],
       "risks": [],
-      "nextAction": "Draft the schedule and share it with all volunteers."
+      "nextAction": "Draft the schedule and share it with all volunteers.",
+      "adjustments": []
     },
     {
       "key": "closeout",
@@ -794,7 +918,32 @@
       "when": [],
       "requiredInfo": [],
       "risks": [],
-      "nextAction": "Draft the feedback form before the event so it can go out the day after."
+      "nextAction": "Draft the feedback form before the event so it can go out the day after.",
+      "adjustments": []
+    },
+    {
+      "key": "accessibility_support",
+      "title": "Plan accessibility support",
+      "description": "Collect accessibility needs at registration and make sure the space and schedule can accommodate them.",
+      "category": "logistics",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -21
+      },
+      "ownerRole": "Participant experience lead",
+      "dependsOn": ["participant_agreement"],
+      "when": [
+        {
+          "key": "accessibility.ask_needs",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Add an optional accessibility question to the registration form and name who reads the answers.",
+      "adjustments": []
     }
   ],
   "riskCategories": [
@@ -802,7 +951,17 @@
       "key": "venue",
       "label": "Venue availability",
       "description": "The venue isn't confirmed, is cancelled or doesn't fit the attendance.",
-      "when": []
+      "when": [],
+      "mitigation": "Get the venue booking confirmed in writing and visit the space before the event.",
+      "contingency": "Keep a backup room, or an online fallback, ready to announce.",
+      "likelihood": "medium",
+      "elevatedWhen": [
+        {
+          "key": "venue.campus_booking",
+          "op": "in",
+          "values": ["requested", "not_started"]
+        }
+      ]
     },
     {
       "key": "minors",
@@ -814,13 +973,33 @@
           "op": "in",
           "values": ["school_students", "mixed"]
         }
+      ],
+      "mitigation": "Collect guardian consent before the event and agree who supervises.",
+      "contingency": "Do not admit a minor without consent; contact guardians through the school.",
+      "likelihood": "medium",
+      "elevatedWhen": [
+        {
+          "key": "audience.guardian_consent",
+          "op": "equals",
+          "value": "not_decided"
+        }
       ]
     },
     {
       "key": "safety",
       "label": "Health and safety",
       "description": "First aid, emergencies, overnight security and crowd safety.",
-      "when": []
+      "when": [],
+      "mitigation": "Write a safety plan with a first-aid point, emergency contacts and exits.",
+      "contingency": "Brief staff on who to call and where to gather in an emergency.",
+      "likelihood": "medium",
+      "elevatedWhen": [
+        {
+          "key": "format.overnight",
+          "op": "equals",
+          "value": true
+        }
+      ]
     },
     {
       "key": "food",
@@ -832,25 +1011,59 @@
           "op": "equals",
           "value": true
         }
+      ],
+      "mitigation": "Ask about dietary needs at registration and label allergens.",
+      "contingency": "Keep a backup supplier and simple allergen-free options.",
+      "likelihood": "medium",
+      "elevatedWhen": [
+        {
+          "key": "catering.dietary",
+          "op": "includes",
+          "value": "nut_free"
+        }
       ]
     },
     {
       "key": "technology",
       "label": "Technology and connectivity",
       "description": "Wi-Fi capacity, power, online platform failure.",
-      "when": []
+      "when": [],
+      "mitigation": "Test Wi-Fi capacity and power for every device before the event.",
+      "contingency": "Bring extension leads, a mobile hotspot and a backup way to submit projects.",
+      "likelihood": "medium",
+      "elevatedWhen": [
+        {
+          "key": "event.capacity",
+          "op": "gte",
+          "value": 150
+        }
+      ]
     },
     {
       "key": "legal",
       "label": "Agreements and ownership",
       "description": "Project ownership, participant terms and sponsor agreements.",
-      "when": []
+      "when": [],
+      "mitigation": "Publish a participant agreement covering conduct, ownership and photo use.",
+      "contingency": "Name one contact who handles disputes.",
+      "likelihood": "low",
+      "elevatedWhen": [
+        {
+          "key": "ip.ownership",
+          "op": "equals",
+          "value": "not_decided"
+        }
+      ]
     },
     {
       "key": "finance",
       "label": "Budget and prizes",
       "description": "Overspending, unpaid suppliers, prize payment arrangements.",
-      "when": []
+      "when": [],
+      "mitigation": "Track spending against the budget and agree prize payment in advance.",
+      "contingency": "Keep a reserve and a list of items to cut first.",
+      "likelihood": "medium",
+      "elevatedWhen": []
     }
   ],
   "requiredForPlan": [
@@ -1044,6 +1257,555 @@
           "value": true
         }
       ]
+    }
+  ],
+  "referenceCurrency": "AED",
+  "summary": "{{event.name}} is a university hackathon lasting {{event.duration_hours}} for about {{event.capacity}} participants (teams of up to {{format.team_size}}; audience: {{audience.level}}; city: {{event.city}}).",
+  "goals": [
+    {
+      "text": "Run a well-organised, fair and safe event where teams can build and present working projects."
+    },
+    {
+      "text": "Keep spending inside the budget and inside the rules of the venue and the institution."
+    },
+    {
+      "text": "Secure sponsors who cover part of the costs and offer prizes or mentors.",
+      "when": [
+        {
+          "key": "sponsors.expected",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "text": "Judge transparently so the prizes ({{prizes.kind}}) are awarded fairly.",
+      "when": [
+        {
+          "key": "prizes.offered",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "text": "Keep every participant under 18 supervised and protected, with guardian consent in place.",
+      "when": [
+        {
+          "key": "audience.level",
+          "op": "in",
+          "values": ["school_students", "mixed"]
+        }
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "text": "A registration form with a participant agreement and code of conduct; teams of at most {{format.team_size}}."
+    },
+    {
+      "text": "Space, power sockets and reliable Wi-Fi for about {{event.capacity}} people and their devices.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "text": "A stable online platform for video, chat and project submission.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "in",
+          "values": ["online", "hybrid"]
+        }
+      ]
+    },
+    {
+      "text": "Food and drink for {{event.duration_hours}}, including options for: {{catering.dietary}}.",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "text": "A safe overnight arrangement: a supervised rest area, security and out-of-hours access.",
+      "when": [
+        {
+          "key": "format.overnight",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "text": "Guardian consent and an age check (minimum age {{audience.min_age}}).",
+      "when": [
+        {
+          "key": "audience.level",
+          "op": "in",
+          "values": ["school_students", "mixed"]
+        }
+      ]
+    },
+    {
+      "text": "A written rule on who owns the projects (currently: {{ip.ownership}})."
+    },
+    {
+      "text": "Photo and video consent collected from participants ({{media.consent}}).",
+      "when": [
+        {
+          "key": "media.photography",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "text": "Judging criteria, a judging panel and a fair way to handle ties.",
+      "when": [
+        {
+          "key": "prizes.offered",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "text": "A way for participants to ask for accessibility support at registration.",
+      "when": [
+        {
+          "key": "accessibility.ask_needs",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "assumptions": [
+    {
+      "text": "The audience is university students only, with no minors.",
+      "ifMissing": "audience.level"
+    },
+    {
+      "text": "Teams have up to 4 people.",
+      "ifMissing": "format.team_size"
+    },
+    {
+      "text": "Light food and drinks are provided; confirm before relying on this in the budget.",
+      "ifMissing": "catering.provided"
+    },
+    {
+      "text": "The venue is on campus and still has to be booked.",
+      "ifMissing": "venue.on_campus",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "text": "Judges and mentors are volunteers from the organizing institution."
+    },
+    {
+      "text": "Participants bring their own laptops."
+    }
+  ],
+  "decisions": [
+    {
+      "text": "Choose the theme, tracks and judging criteria."
+    },
+    {
+      "text": "Decide whether to look for sponsors.",
+      "ifMissing": "sponsors.expected"
+    },
+    {
+      "text": "Decide whether to offer prizes and how they will be funded.",
+      "ifMissing": "prizes.offered"
+    },
+    {
+      "text": "Decide who owns the projects built during the event.",
+      "ifMissing": "ip.ownership"
+    }
+  ],
+  "budgetLines": [
+    {
+      "key": "venue_offsite",
+      "name": "Venue hire",
+      "basis": "fixed",
+      "unitAmount": 8000,
+      "note": "Off-campus venue.",
+      "when": [
+        {
+          "key": "venue.on_campus",
+          "op": "equals",
+          "value": false
+        }
+      ],
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "event.capacity",
+              "op": "gte",
+              "value": 300
+            }
+          ],
+          "multiplier": 2
+        }
+      ]
+    },
+    {
+      "key": "venue_campus",
+      "name": "Campus fees",
+      "basis": "fixed",
+      "unitAmount": 1500,
+      "note": "Security, cleaning or power fees may apply on campus.",
+      "when": [
+        {
+          "key": "venue.on_campus",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "event.capacity",
+              "op": "gte",
+              "value": 300
+            }
+          ],
+          "multiplier": 2
+        }
+      ]
+    },
+    {
+      "key": "catering",
+      "name": "Food and drink",
+      "basis": "per_attendee",
+      "unitAmount": 60,
+      "note": "",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "format.overnight",
+              "op": "equals",
+              "value": true
+            }
+          ],
+          "multiplier": 1.8
+        }
+      ]
+    },
+    {
+      "key": "av_wifi",
+      "name": "Audio-visual and Wi-Fi",
+      "basis": "fixed",
+      "unitAmount": 3000,
+      "note": "Screens, sound, extra access points.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ],
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "event.capacity",
+              "op": "gte",
+              "value": 200
+            }
+          ],
+          "multiplier": 1.5
+        }
+      ]
+    },
+    {
+      "key": "platform",
+      "name": "Online platform",
+      "basis": "fixed",
+      "unitAmount": 800,
+      "note": "Video, chat and submission tools.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "in",
+          "values": ["online", "hybrid"]
+        }
+      ]
+    },
+    {
+      "key": "prizes",
+      "name": "Prizes",
+      "basis": "fixed",
+      "unitAmount": 8000,
+      "note": "Depends on the prize kinds you choose.",
+      "when": [
+        {
+          "key": "prizes.offered",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "merch",
+      "name": "Signage and merchandise",
+      "basis": "per_attendee",
+      "unitAmount": 15,
+      "note": "Badges, banners, t-shirts.",
+      "when": []
+    },
+    {
+      "key": "security_overnight",
+      "name": "Overnight security",
+      "basis": "fixed",
+      "unitAmount": 2500,
+      "note": "Extra security cover for the night.",
+      "when": [
+        {
+          "key": "format.overnight",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "photography",
+      "name": "Photography",
+      "basis": "fixed",
+      "unitAmount": 1500,
+      "note": "",
+      "when": [
+        {
+          "key": "media.photography",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "first_aid",
+      "name": "First aid",
+      "basis": "fixed",
+      "unitAmount": 800,
+      "note": "",
+      "when": [],
+      "adjustments": []
+    },
+    {
+      "key": "reserve",
+      "name": "Reserve",
+      "basis": "fixed",
+      "unitAmount": 2000,
+      "note": "For costs nobody planned for.",
+      "when": []
+    }
+  ],
+  "schedule": [
+    {
+      "key": "checkin",
+      "title": "Registration and check-in",
+      "from": "start",
+      "offsetMinutes": 0,
+      "durationMinutes": 60,
+      "note": "Check names against the registration list.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "key": "platform_open",
+      "title": "Platform opens and sound check",
+      "from": "start",
+      "offsetMinutes": 0,
+      "durationMinutes": 60,
+      "note": "",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "equals",
+          "value": "online"
+        }
+      ]
+    },
+    {
+      "key": "opening",
+      "title": "Opening and rules briefing",
+      "from": "start",
+      "offsetMinutes": 60,
+      "durationMinutes": 45,
+      "note": "Theme, rules, schedule and safety information.",
+      "when": []
+    },
+    {
+      "key": "teams",
+      "title": "Team formation",
+      "from": "start",
+      "offsetMinutes": 105,
+      "durationMinutes": 45,
+      "note": "Help people without a team find one (teams of up to {{format.team_size}}).",
+      "when": []
+    },
+    {
+      "key": "kickoff",
+      "title": "Hacking starts",
+      "from": "start",
+      "offsetMinutes": 150,
+      "durationMinutes": 15,
+      "note": "",
+      "when": []
+    },
+    {
+      "key": "meal1",
+      "title": "First meal",
+      "from": "start",
+      "offsetMinutes": 240,
+      "durationMinutes": 45,
+      "note": "Check dietary needs: {{catering.dietary}}.",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "mentors",
+      "title": "Mentor office hours",
+      "from": "start",
+      "offsetMinutes": 300,
+      "durationMinutes": 120,
+      "note": "",
+      "when": [
+        {
+          "key": "event.duration_hours",
+          "op": "gte",
+          "value": 8
+        }
+      ]
+    },
+    {
+      "key": "checkpoint",
+      "title": "Mid-point check-in with teams",
+      "from": "start",
+      "offsetMinutes": 480,
+      "durationMinutes": 30,
+      "note": "",
+      "when": [
+        {
+          "key": "event.duration_hours",
+          "op": "gte",
+          "value": 10
+        }
+      ]
+    },
+    {
+      "key": "meal2",
+      "title": "Second meal",
+      "from": "start",
+      "offsetMinutes": 600,
+      "durationMinutes": 45,
+      "note": "",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        },
+        {
+          "key": "event.duration_hours",
+          "op": "gte",
+          "value": 12
+        }
+      ]
+    },
+    {
+      "key": "quiet",
+      "title": "Quiet hours begin",
+      "from": "start",
+      "offsetMinutes": 840,
+      "durationMinutes": 30,
+      "note": "Supervised rest area open.",
+      "when": [
+        {
+          "key": "format.overnight",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "breakfast",
+      "title": "Breakfast",
+      "from": "end",
+      "offsetMinutes": 300,
+      "durationMinutes": 45,
+      "note": "",
+      "when": [
+        {
+          "key": "format.overnight",
+          "op": "equals",
+          "value": true
+        },
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "submission",
+      "title": "Project submission closes",
+      "from": "end",
+      "offsetMinutes": 135,
+      "durationMinutes": 15,
+      "note": "No submissions after this time.",
+      "when": []
+    },
+    {
+      "key": "demos",
+      "title": "Project demos and judging",
+      "from": "end",
+      "offsetMinutes": 30,
+      "durationMinutes": 90,
+      "note": "Judges score against the published criteria if prizes are offered.",
+      "when": []
+    },
+    {
+      "key": "closing",
+      "title": "Closing ceremony",
+      "from": "end",
+      "offsetMinutes": 0,
+      "durationMinutes": 30,
+      "note": "Thanks, announcements and prize-giving if prizes are offered.",
+      "when": []
     }
   ]
 }

@@ -1,8 +1,13 @@
 import { connection } from "next/server";
-import Link from "next/link";
-import { inspectServerEnv } from "@/lib/env.server";
+import { inspectServerEnv, type IntegrationName } from "@/lib/env.server";
 
-/** Global banner when any integration runs in mock mode (event.md §8). Evaluated per request. */
+const SIMULATED: Record<IntegrationName, string> = {
+  email: "emails are not delivered",
+  weather: "weather shows sample data",
+  places: "venue search shows sample data",
+};
+
+/** Global banner while an integration runs in test mode (event.md §8). Evaluated per request. */
 export async function IntegrationBanner() {
   await connection();
   const mocked = inspectServerEnv().integrations.filter((i) => i.mock);
@@ -10,11 +15,8 @@ export async function IntegrationBanner() {
   return (
     <div className="border-b border-line bg-warning-soft/60 px-4 py-2 sm:px-6">
       <p className="text-xs text-ink">
-        <span className="font-semibold">Mock mode:</span> {mocked.map((i) => i.name).join(", ")}{" "}
-        results are simulated.{" "}
-        <Link href="/status" className="font-medium underline underline-offset-2">
-          Details
-        </Link>
+        <span className="font-semibold">Test mode:</span>{" "}
+        {mocked.map((i) => SIMULATED[i.name]).join(", ")}.
       </p>
     </div>
   );

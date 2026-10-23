@@ -1,0 +1,1217 @@
+{
+  "$comment": "HalaEvents playbook for workshops and training sessions. Validated by PlaybookSchema (src/modules/planning/playbook.ts). Text is planning guidance written by the HalaEvents team, not legal advice or verified sources; budget amounts are illustrative allowances, not quotes.",
+  "id": "workshop",
+  "version": 1,
+  "eventType": "workshop",
+  "title": "Workshop or training session",
+  "referenceCurrency": "AED",
+  "summary": "{{event.name}} is a workshop lasting {{event.duration_hours}} for about {{event.capacity}} participants (level: {{learners.level}}; format: {{session.format}}; {{facilitators.count}} facilitating; city: {{event.city}}).",
+  "questions": [
+    {
+      "key": "learners.level",
+      "type": "single_choice",
+      "text": "What level are the participants?",
+      "why": "Sets the pace, prerequisites and the materials you prepare.",
+      "required": true,
+      "when": [],
+      "options": [
+        {
+          "value": "beginner",
+          "label": "Beginners"
+        },
+        {
+          "value": "intermediate",
+          "label": "Some experience"
+        },
+        {
+          "value": "advanced",
+          "label": "Advanced"
+        },
+        {
+          "value": "mixed",
+          "label": "Mixed levels"
+        }
+      ]
+    },
+    {
+      "key": "session.format",
+      "type": "single_choice",
+      "text": "What is the main format?",
+      "why": "Decides the room set-up, equipment and group size.",
+      "required": true,
+      "when": [],
+      "options": [
+        {
+          "value": "lecture",
+          "label": "Mostly presentation"
+        },
+        {
+          "value": "hands_on",
+          "label": "Mostly hands-on practice"
+        },
+        {
+          "value": "mixed",
+          "label": "Presentation and practice"
+        }
+      ]
+    },
+    {
+      "key": "facilitators.count",
+      "type": "number",
+      "text": "How many facilitators or trainers?",
+      "why": "Sets facilitator costs and the participant-to-trainer ratio.",
+      "required": true,
+      "when": [],
+      "min": 1,
+      "max": 20,
+      "unit": "people"
+    },
+    {
+      "key": "audience.minors",
+      "type": "boolean",
+      "text": "Will anyone under 18 take part?",
+      "why": "Adds guardian consent and supervision tasks.",
+      "required": true,
+      "when": []
+    },
+    {
+      "key": "venue.status",
+      "type": "single_choice",
+      "text": "Where does the venue booking stand?",
+      "why": "Decides how urgent the venue tasks are.",
+      "required": true,
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ],
+      "options": [
+        {
+          "value": "confirmed_in_writing",
+          "label": "Confirmed in writing"
+        },
+        {
+          "value": "requested",
+          "label": "Requested, not confirmed"
+        },
+        {
+          "value": "not_started",
+          "label": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "online.platform",
+      "type": "text",
+      "text": "Which online platform will you use?",
+      "why": "Used to plan the technical test.",
+      "required": false,
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "in",
+          "values": ["online", "hybrid"]
+        }
+      ],
+      "maxLength": 100
+    },
+    {
+      "key": "materials.needed",
+      "type": "multi_choice",
+      "text": "What do participants need?",
+      "why": "Goes into the preparation and budget.",
+      "required": false,
+      "when": [],
+      "options": [
+        {
+          "value": "handouts",
+          "label": "Printed handouts"
+        },
+        {
+          "value": "laptops",
+          "label": "Laptops or devices"
+        },
+        {
+          "value": "equipment",
+          "label": "Special equipment"
+        },
+        {
+          "value": "software",
+          "label": "Software or accounts"
+        }
+      ]
+    },
+    {
+      "key": "prerequisites.required",
+      "type": "boolean",
+      "text": "Must participants prepare anything beforehand?",
+      "why": "Adds a preparation email and a deadline.",
+      "required": true,
+      "when": []
+    },
+    {
+      "key": "registration.fee",
+      "type": "boolean",
+      "text": "Is there a participation fee?",
+      "why": "Adds payment and refund tasks.",
+      "required": true,
+      "when": []
+    },
+    {
+      "key": "catering.provided",
+      "type": "boolean",
+      "text": "Will you provide food or refreshments?",
+      "why": "Adds catering tasks and budget lines.",
+      "required": true,
+      "when": []
+    },
+    {
+      "key": "catering.dietary",
+      "type": "multi_choice",
+      "text": "Which dietary needs must refreshments cover?",
+      "why": "Goes into the catering brief.",
+      "required": false,
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "options": [
+        {
+          "value": "halal",
+          "label": "Halal"
+        },
+        {
+          "value": "vegetarian",
+          "label": "Vegetarian"
+        },
+        {
+          "value": "vegan",
+          "label": "Vegan"
+        },
+        {
+          "value": "gluten_free",
+          "label": "Gluten free"
+        },
+        {
+          "value": "nut_free",
+          "label": "Nut free"
+        }
+      ]
+    },
+    {
+      "key": "certificate.issued",
+      "type": "boolean",
+      "text": "Will participants receive a certificate?",
+      "why": "Adds certificate design and attendance tracking.",
+      "required": true,
+      "when": []
+    },
+    {
+      "key": "feedback.collect",
+      "type": "boolean",
+      "text": "Will you collect feedback afterwards?",
+      "why": "Adds a feedback survey task.",
+      "required": true,
+      "when": []
+    },
+    {
+      "key": "accessibility.ask_needs",
+      "type": "boolean",
+      "text": "Will you ask participants about accessibility needs?",
+      "why": "Adds an accessibility support task.",
+      "required": true,
+      "when": []
+    }
+  ],
+  "goals": [
+    {
+      "text": "Teach the planned skills so participants leave able to use them."
+    },
+    {
+      "text": "Keep the group size and pace suited to a {{learners.level}} level."
+    },
+    {
+      "text": "Make hands-on time work: every participant has what they need.",
+      "when": [
+        {
+          "key": "session.format",
+          "op": "in",
+          "values": ["hands_on", "mixed"]
+        }
+      ]
+    },
+    {
+      "text": "Keep participants under 18 safe, with guardian consent.",
+      "when": [
+        {
+          "key": "audience.minors",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "text": "A room for about {{event.capacity}} people set up for {{session.format}}.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "text": "A tested online platform with breakout rooms or chat.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "in",
+          "values": ["online", "hybrid"]
+        }
+      ]
+    },
+    {
+      "text": "Devices and accounts for every participant before the day.",
+      "when": [
+        {
+          "key": "materials.needed",
+          "op": "includes",
+          "value": "laptops"
+        }
+      ]
+    },
+    {
+      "text": "Printed handouts or a shared folder with the materials.",
+      "when": [
+        {
+          "key": "materials.needed",
+          "op": "includes",
+          "value": "handouts"
+        }
+      ]
+    },
+    {
+      "text": "Guardian consent for participants under 18.",
+      "when": [
+        {
+          "key": "audience.minors",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "text": "Refreshments covering: {{catering.dietary}}.",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "text": "Attendance records for the certificate.",
+      "when": [
+        {
+          "key": "certificate.issued",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "assumptions": [
+    {
+      "text": "Participants have mixed experience.",
+      "ifMissing": "learners.level"
+    },
+    {
+      "text": "The workshop mixes presentation and practice.",
+      "ifMissing": "session.format"
+    },
+    {
+      "text": "One facilitator leads the session.",
+      "ifMissing": "facilitators.count"
+    },
+    {
+      "text": "No participants are under 18.",
+      "ifMissing": "audience.minors"
+    }
+  ],
+  "decisions": [
+    {
+      "text": "Choose the learning outcomes for the session."
+    },
+    {
+      "text": "Decide whether to charge a fee.",
+      "ifMissing": "registration.fee"
+    },
+    {
+      "text": "Decide whether participants receive a certificate.",
+      "ifMissing": "certificate.issued"
+    }
+  ],
+  "budgetLines": [
+    {
+      "key": "venue",
+      "name": "Room hire",
+      "basis": "fixed",
+      "unitAmount": 1500,
+      "note": "",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "key": "facilitators",
+      "name": "Facilitator fees",
+      "basis": "fixed",
+      "unitAmount": 1500,
+      "note": "Per facilitator.",
+      "when": [],
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "facilitators.count",
+              "op": "gte",
+              "value": 2
+            }
+          ],
+          "multiplier": 2
+        },
+        {
+          "when": [
+            {
+              "key": "facilitators.count",
+              "op": "gte",
+              "value": 3
+            }
+          ],
+          "multiplier": 1.5
+        }
+      ]
+    },
+    {
+      "key": "materials",
+      "name": "Materials",
+      "basis": "per_attendee",
+      "unitAmount": 25,
+      "note": "Handouts and supplies.",
+      "when": [
+        {
+          "key": "materials.needed",
+          "op": "includes",
+          "value": "handouts"
+        }
+      ]
+    },
+    {
+      "key": "equipment",
+      "name": "Equipment",
+      "basis": "fixed",
+      "unitAmount": 1200,
+      "note": "",
+      "when": [
+        {
+          "key": "materials.needed",
+          "op": "includes",
+          "value": "equipment"
+        }
+      ]
+    },
+    {
+      "key": "platform",
+      "name": "Online platform",
+      "basis": "fixed",
+      "unitAmount": 300,
+      "note": "",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "in",
+          "values": ["online", "hybrid"]
+        }
+      ]
+    },
+    {
+      "key": "catering",
+      "name": "Refreshments",
+      "basis": "per_attendee",
+      "unitAmount": 35,
+      "note": "",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "certificates",
+      "name": "Certificates",
+      "basis": "per_attendee",
+      "unitAmount": 5,
+      "note": "",
+      "when": [
+        {
+          "key": "certificate.issued",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "reserve",
+      "name": "Reserve",
+      "basis": "fixed",
+      "unitAmount": 500,
+      "note": "For costs nobody planned for.",
+      "when": []
+    }
+  ],
+  "schedule": [
+    {
+      "key": "arrival",
+      "title": "Arrival and sign-in",
+      "from": "start",
+      "offsetMinutes": 0,
+      "durationMinutes": 20,
+      "note": "",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "key": "online_open",
+      "title": "Platform opens and tech check",
+      "from": "start",
+      "offsetMinutes": 0,
+      "durationMinutes": 15,
+      "note": "",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "equals",
+          "value": "online"
+        }
+      ]
+    },
+    {
+      "key": "intro",
+      "title": "Welcome and goals",
+      "from": "start",
+      "offsetMinutes": 20,
+      "durationMinutes": 20,
+      "note": "Learning outcomes and ground rules.",
+      "when": []
+    },
+    {
+      "key": "block1",
+      "title": "First teaching block",
+      "from": "start",
+      "offsetMinutes": 40,
+      "durationMinutes": 60,
+      "note": "Level: {{learners.level}}.",
+      "when": []
+    },
+    {
+      "key": "practice1",
+      "title": "Hands-on practice",
+      "from": "start",
+      "offsetMinutes": 100,
+      "durationMinutes": 60,
+      "note": "",
+      "when": [
+        {
+          "key": "session.format",
+          "op": "in",
+          "values": ["hands_on", "mixed"]
+        }
+      ]
+    },
+    {
+      "key": "break",
+      "title": "Break",
+      "from": "start",
+      "offsetMinutes": 160,
+      "durationMinutes": 20,
+      "note": "Refreshments: {{catering.dietary}}.",
+      "when": [
+        {
+          "key": "event.duration_hours",
+          "op": "gte",
+          "value": 3
+        }
+      ]
+    },
+    {
+      "key": "block2",
+      "title": "Second teaching block",
+      "from": "start",
+      "offsetMinutes": 180,
+      "durationMinutes": 60,
+      "note": "",
+      "when": [
+        {
+          "key": "event.duration_hours",
+          "op": "gte",
+          "value": 4
+        }
+      ]
+    },
+    {
+      "key": "practice2",
+      "title": "Project or exercise",
+      "from": "start",
+      "offsetMinutes": 240,
+      "durationMinutes": 60,
+      "note": "",
+      "when": [
+        {
+          "key": "session.format",
+          "op": "in",
+          "values": ["hands_on", "mixed"]
+        },
+        {
+          "key": "event.duration_hours",
+          "op": "gte",
+          "value": 5
+        }
+      ]
+    },
+    {
+      "key": "wrap",
+      "title": "Questions and wrap-up",
+      "from": "end",
+      "offsetMinutes": 20,
+      "durationMinutes": 25,
+      "note": "",
+      "when": []
+    },
+    {
+      "key": "feedback",
+      "title": "Feedback form and certificates",
+      "from": "end",
+      "offsetMinutes": 0,
+      "durationMinutes": 20,
+      "note": "",
+      "when": [
+        {
+          "key": "feedback.collect",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "riskCategories": [
+    {
+      "key": "venue",
+      "label": "Room and equipment",
+      "description": "The room is unavailable or equipment fails.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ],
+      "mitigation": "Confirm the room and test equipment before participants arrive.",
+      "contingency": "Keep a printed copy of the materials and a spare device.",
+      "likelihood": "medium",
+      "elevatedWhen": [
+        {
+          "key": "venue.status",
+          "op": "in",
+          "values": ["requested", "not_started"]
+        }
+      ]
+    },
+    {
+      "key": "facilitator",
+      "label": "Facilitator unavailable",
+      "description": "The facilitator falls ill or cancels.",
+      "when": [],
+      "mitigation": "Share the plan and materials with a second person.",
+      "contingency": "Agree a backup facilitator or a reschedule date.",
+      "likelihood": "low",
+      "elevatedWhen": [
+        {
+          "key": "facilitators.count",
+          "op": "equals",
+          "value": 1
+        }
+      ]
+    },
+    {
+      "key": "minors",
+      "label": "Participants under 18",
+      "description": "Consent and supervision.",
+      "when": [
+        {
+          "key": "audience.minors",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "mitigation": "Collect guardian consent and name a supervisor.",
+      "contingency": "Do not admit a minor without consent.",
+      "likelihood": "medium",
+      "elevatedWhen": []
+    },
+    {
+      "key": "technology",
+      "label": "Devices and connectivity",
+      "description": "Participants' devices, accounts or Wi-Fi fail.",
+      "when": [
+        {
+          "key": "materials.needed",
+          "op": "includes",
+          "value": "laptops"
+        }
+      ],
+      "mitigation": "Ask participants to test their set-up before the day.",
+      "contingency": "Have spare devices and offline copies of the materials.",
+      "likelihood": "medium",
+      "elevatedWhen": [
+        {
+          "key": "materials.needed",
+          "op": "includes",
+          "value": "software"
+        }
+      ]
+    },
+    {
+      "key": "pace",
+      "label": "Pace does not suit the group",
+      "description": "The content is too hard or too easy.",
+      "when": [],
+      "mitigation": "Ask about experience at registration.",
+      "contingency": "Prepare an extension exercise and a simpler version.",
+      "likelihood": "medium",
+      "elevatedWhen": [
+        {
+          "key": "learners.level",
+          "op": "equals",
+          "value": "mixed"
+        }
+      ]
+    },
+    {
+      "key": "food",
+      "label": "Food safety and dietary needs",
+      "description": "Allergies and dietary requirements.",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "mitigation": "Ask about dietary needs at registration.",
+      "contingency": "Keep simple allergen-free options.",
+      "likelihood": "low",
+      "elevatedWhen": [
+        {
+          "key": "catering.dietary",
+          "op": "includes",
+          "value": "nut_free"
+        }
+      ]
+    }
+  ],
+  "requiredForPlan": [
+    {
+      "key": "event.city",
+      "label": "The event's city (edit the event)",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "key": "learners.level",
+      "label": "The participants' level",
+      "when": []
+    },
+    {
+      "key": "session.format",
+      "label": "The main format",
+      "when": []
+    },
+    {
+      "key": "venue.status",
+      "label": "Where the venue booking stands",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    }
+  ],
+  "complianceTopics": [
+    {
+      "key": "minors_safeguarding",
+      "title": "Participants under 18",
+      "description": "Check the institution's safeguarding and consent rules.",
+      "confidence": "conditional",
+      "sourceRequirement": "institution_policy",
+      "when": [
+        {
+          "key": "audience.minors",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    },
+    {
+      "key": "venue_policy",
+      "title": "Venue rules",
+      "description": "The venue may have rules on use of rooms and catering.",
+      "confidence": "recommended",
+      "sourceRequirement": "institution_policy",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "key": "food_safety",
+      "title": "Food safety",
+      "description": "Check the caterer's licensing and allergen handling.",
+      "confidence": "conditional",
+      "sourceRequirement": "official_source_required",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "providerCategories": [
+    {
+      "category": "venue",
+      "reason": "The workshop needs a room.",
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ]
+    },
+    {
+      "category": "catering",
+      "reason": "Refreshments are provided.",
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "taskTemplates": [
+    {
+      "key": "define_outcomes",
+      "title": "Define the learning outcomes",
+      "description": "Write what participants should be able to do at the end, for a {{learners.level}} group and a {{session.format}} format.",
+      "category": "staffing",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -45
+      },
+      "ownerRole": "Lead facilitator",
+      "dependsOn": [],
+      "when": [],
+      "requiredInfo": ["learners.level", "session.format"],
+      "risks": [],
+      "nextAction": "Write three outcomes and an outline.",
+      "adjustments": []
+    },
+    {
+      "key": "confirm_facilitators",
+      "title": "Confirm facilitators",
+      "description": "Confirm {{facilitators.count}} facilitator(s), their fees and availability on the date.",
+      "category": "staffing",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -40
+      },
+      "ownerRole": "Lead organizer",
+      "dependsOn": ["define_outcomes"],
+      "when": [],
+      "requiredInfo": ["facilitators.count"],
+      "risks": [],
+      "nextAction": "Send each facilitator a written confirmation.",
+      "adjustments": []
+    },
+    {
+      "key": "secure_venue",
+      "title": "Book the room",
+      "description": "Book a room for about {{event.capacity}} people with the right layout for the format.",
+      "category": "venue",
+      "priority": "critical",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -35
+      },
+      "ownerRole": "Venue lead",
+      "dependsOn": ["define_outcomes"],
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "not_in",
+          "values": ["online"]
+        }
+      ],
+      "requiredInfo": ["venue.status"],
+      "risks": [],
+      "nextAction": "Request the room in writing and confirm the layout.",
+      "adjustments": []
+    },
+    {
+      "key": "setup_online_platform",
+      "title": "Set up the online platform",
+      "description": "Choose the platform, test audio and breakout rooms.",
+      "category": "technology",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -10
+      },
+      "ownerRole": "Technology lead",
+      "dependsOn": ["define_outcomes"],
+      "when": [
+        {
+          "key": "event.venue_type",
+          "op": "in",
+          "values": ["online", "hybrid"]
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Run a test session with a second person.",
+      "adjustments": []
+    },
+    {
+      "key": "open_registration",
+      "title": "Open registration",
+      "description": "Publish a page with the date, level, prerequisites and the number of places.",
+      "category": "registration",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -28
+      },
+      "ownerRole": "Registration lead",
+      "dependsOn": ["define_outcomes"],
+      "when": [],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Publish the page and cap registrations at {{event.capacity}}.",
+      "adjustments": []
+    },
+    {
+      "key": "fee_payment",
+      "title": "Set up fees and payment",
+      "description": "Set the fee, payment method and refund policy.",
+      "category": "finance",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -28
+      },
+      "ownerRole": "Treasurer",
+      "dependsOn": ["define_outcomes"],
+      "when": [
+        {
+          "key": "registration.fee",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Write the refund policy before opening sales.",
+      "adjustments": []
+    },
+    {
+      "key": "minors_consent",
+      "title": "Collect guardian consent",
+      "description": "Prepare a consent form and agree who supervises participants under 18.",
+      "category": "compliance",
+      "priority": "critical",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -21
+      },
+      "ownerRole": "Lead organizer",
+      "dependsOn": ["open_registration"],
+      "when": [
+        {
+          "key": "audience.minors",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Send the consent form with the registration confirmation.",
+      "adjustments": []
+    },
+    {
+      "key": "prepare_materials",
+      "title": "Prepare materials",
+      "description": "Prepare slides, exercises and, where needed, handouts.",
+      "category": "logistics",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -14
+      },
+      "ownerRole": "Lead facilitator",
+      "dependsOn": ["define_outcomes"],
+      "when": [],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Share a draft with a second person for review.",
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "session.format",
+              "op": "equals",
+              "value": "mixed"
+            }
+          ],
+          "shiftDays": -3,
+          "note": "Mixed formats need both slides and exercises."
+        }
+      ]
+    },
+    {
+      "key": "setup_lab",
+      "title": "Prepare devices and accounts",
+      "description": "Check that every participant will have a working device, accounts and software.",
+      "category": "technology",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -7
+      },
+      "ownerRole": "Technology lead",
+      "dependsOn": ["prepare_materials"],
+      "when": [
+        {
+          "key": "session.format",
+          "op": "in",
+          "values": ["hands_on", "mixed"]
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Test the set-up on a device like the participants'.",
+      "adjustments": [
+        {
+          "when": [
+            {
+              "key": "materials.needed",
+              "op": "includes",
+              "value": "software"
+            }
+          ],
+          "priority": "critical",
+          "note": "Software or accounts take time: ask early."
+        }
+      ]
+    },
+    {
+      "key": "prerequisites_email",
+      "title": "Send preparation instructions",
+      "description": "Tell participants what to install or prepare before the workshop.",
+      "category": "communications",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -7
+      },
+      "ownerRole": "Communications lead",
+      "dependsOn": ["open_registration"],
+      "when": [
+        {
+          "key": "prerequisites.required",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Send instructions and a way to ask for help.",
+      "adjustments": []
+    },
+    {
+      "key": "book_catering",
+      "title": "Order refreshments",
+      "description": "Agree the order, numbers and times, covering: {{catering.dietary}}.",
+      "category": "catering",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -10
+      },
+      "ownerRole": "Catering lead",
+      "dependsOn": ["define_outcomes"],
+      "when": [
+        {
+          "key": "catering.provided",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Ask a caterer for a quote.",
+      "adjustments": []
+    },
+    {
+      "key": "accessibility_plan",
+      "title": "Plan accessibility support",
+      "description": "Collect accessibility needs and check access to the room and materials.",
+      "category": "logistics",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -14
+      },
+      "ownerRole": "Participant experience lead",
+      "dependsOn": ["open_registration"],
+      "when": [
+        {
+          "key": "accessibility.ask_needs",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Add an optional accessibility question to registration.",
+      "adjustments": []
+    },
+    {
+      "key": "certificates",
+      "title": "Prepare certificates",
+      "description": "Design the certificate and plan how attendance is recorded.",
+      "category": "communications",
+      "priority": "low",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -5
+      },
+      "ownerRole": "Registration lead",
+      "dependsOn": ["open_registration"],
+      "when": [
+        {
+          "key": "certificate.issued",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Draft the certificate and an attendance sheet.",
+      "adjustments": []
+    },
+    {
+      "key": "run_of_show",
+      "title": "Prepare the day plan",
+      "description": "Write the schedule and brief facilitators and helpers.",
+      "category": "staffing",
+      "priority": "high",
+      "due": {
+        "anchor": "event_start",
+        "offsetDays": -1
+      },
+      "ownerRole": "Lead facilitator",
+      "dependsOn": ["prepare_materials", "confirm_facilitators"],
+      "when": [],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Share the schedule and a contact list.",
+      "adjustments": []
+    },
+    {
+      "key": "feedback_survey",
+      "title": "Send the feedback survey",
+      "description": "Send a short feedback form and review the answers.",
+      "category": "closeout",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_end",
+        "offsetDays": 2
+      },
+      "ownerRole": "Lead organizer",
+      "dependsOn": ["run_of_show"],
+      "when": [
+        {
+          "key": "feedback.collect",
+          "op": "equals",
+          "value": true
+        }
+      ],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Send the form within two days.",
+      "adjustments": []
+    },
+    {
+      "key": "closeout",
+      "title": "Close out the event",
+      "description": "Pay suppliers, send certificates and thank facilitators.",
+      "category": "closeout",
+      "priority": "medium",
+      "due": {
+        "anchor": "event_end",
+        "offsetDays": 7
+      },
+      "ownerRole": "Lead organizer",
+      "dependsOn": ["run_of_show"],
+      "when": [],
+      "requiredInfo": [],
+      "risks": [],
+      "nextAction": "Send thank-you messages and settle invoices.",
+      "adjustments": []
+    }
+  ]
+}

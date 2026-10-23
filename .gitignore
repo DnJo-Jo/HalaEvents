@@ -16,3 +16,19 @@ supabase/.branches/
 
 .DS_Store
 *.log
+
+# Installers / large binaries
+*.deb
+*.zip
+*.iso
+
+# Editor backups and keys
+*.save
+*.pem
+*.key
+
+# Misc
+.vercel
+.idea/
+.vscode/
+*.deb

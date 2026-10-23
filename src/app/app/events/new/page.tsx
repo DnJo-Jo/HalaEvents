@@ -8,6 +8,7 @@ import { Input, Select } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { createEventAction } from "@/modules/events/actions";
+import { EVENT_TYPE_LABELS } from "@/modules/events/schemas";
 import { requireMember } from "@/modules/profiles/service";
 
 export const metadata: Metadata = { title: "New event" };
@@ -65,8 +66,20 @@ export default async function NewEventPage() {
                   required
                   minLength={3}
                   maxLength={120}
-                  placeholder="e.g. Campus Hackathon 2026"
+                  placeholder="e.g. Campus Innovation Day 2026"
                 />
+              </FormField>
+              <FormField
+                label="Event type"
+                hint="Decides which planning questions and checklist you get."
+              >
+                <Select name="eventType" defaultValue="university_hackathon">
+                  {Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
               </FormField>
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField label="Starts" hint="In the event's timezone." required>

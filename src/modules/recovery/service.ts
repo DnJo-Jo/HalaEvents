@@ -1,26 +1,24 @@
 import "server-only";
-import { inputHash } from "@/lib/ai/hash";
+import { inputHash } from "@/lib/input-hash";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { AppError } from "@/lib/errors";
-import { getAiProvider } from "@/modules/ai/provider";
-import { explainAiError, runPipeline, type AiActionResult } from "@/modules/ai/service";
+import * as planningRepo from "@/modules/planning/repo";
 import * as commsRepo from "@/modules/comms/repo";
 import * as eventsRepo from "@/modules/events/repo";
 import { EventType } from "@/modules/events/schemas";
 import { getEventForMember } from "@/modules/events/service";
 import { requireMember } from "@/modules/profiles/service";
 import { playbookFor } from "@/playbooks";
-import { RECOVERY_SYSTEM, recoveryPrompt } from "./prompts";
 import * as repo from "./repo";
 import {
   budgetView,
   buildChanges,
   buildInquiries,
   dateInZone,
+  deterministicProposal,
   planningWindow,
   validateProposal,
 } from "./rules";
-import { RecoveryProposal } from "./schemas";
 
 /**
  * Venue-cancellation recovery (event.md §23). Everything here is a simulation. Authorization comes
@@ -102,7 +100,6 @@ export async function getIncidentView(eventId: string, incidentId: string) {
   const messages = communications.filter(
     (c) => c.recovery_plan_id && planIds.has(c.recovery_plan_id),
   );
-  const provider = getAiProvider();
   return {
     event,
     incident,
@@ -114,7 +111,6 @@ export async function getIncidentView(eventId: string, incidentId: string) {
     approvals,
     messages,
     budget: budgetView(incident.impact),
-    provider: { name: provider.name, isMock: provider.isMock },
   };
 }
 
@@ -142,11 +138,19 @@ export async function simulate(eventId: string, input: { bookingId: string; note
   };
 }
 
-/** Asks the model for a recovery proposal, validates it, and stores it (changing nothing else). */
+export interface RecoveryResult {
+  outcome: "created";
+  message: string;
+}
+
+/**
+ * Builds a recovery proposal from the impact snapshot and the playbook's guidance, checks it, and
+ * stores it (changing nothing else). Rules only: no external service is involved.
+ */
 export async function generateRecovery(
   eventId: string,
   incidentId: string,
-): Promise<AiActionResult> {
+): Promise<RecoveryResult> {
   const { db, event } = await managerContext(eventId);
   const incident = await incidentInEvent(db, eventId, incidentId);
   if (incident.status !== "assessing" && incident.status !== "replan_proposed")
@@ -159,50 +163,35 @@ export async function generateRecovery(
       "The event has already started, so there is nothing to re-plan.",
     );
 
-  const provider = getAiProvider();
   const guidance = playbookFor(EventType.parse(event.event_type)).recovery?.venueCancellation;
-  const { prompt, data } = recoveryPrompt(impact, today, guidance);
-  const { runId, result } = await runPipeline(
-    db,
-    provider,
-    eventId,
-    inputHash({
-      pipeline: "recovery",
-      provider: provider.name,
-      model: provider.model,
-      incident: incidentId,
-      data,
-      at: Date.now(),
-    }),
-    {
-      pipeline: "recovery",
-      system: RECOVERY_SYSTEM,
-      prompt,
-      schema: RecoveryProposal,
-      validate: (p) => validateProposal(p, impact, today),
-      context: { impact, today, guidance },
-      temperature: 0.3,
-    },
-  );
-  if (!result.ok) {
-    return {
-      outcome: "failed",
-      message: `${explainAiError(result.error.code, result.error.retryAfterSeconds)} Nothing was changed. The affected items below were found by rules, not AI, so you can still act on them.`,
-    };
+  const proposal = deterministicProposal(impact, today, guidance);
+  const errors = validateProposal(proposal, impact, today);
+  if (errors.length > 0) {
+    console.error(JSON.stringify({ msg: "recovery_invalid", errors: errors.slice(0, 5) }));
+    throw new AppError(
+      "internal",
+      "A recovery proposal couldn't be built for this incident. Nothing was changed.",
+    );
   }
+  // The database accepts a proposal only with a finished run of the caller; a rules run records it.
+  const runId = await planningRepo.startRun(db, {
+    eventId,
+    pipeline: "recovery",
+    inputHash: inputHash({ pipeline: "recovery", incident: incidentId, proposal, at: Date.now() }),
+  });
+  await planningRepo.finishRun(db, runId);
   await repo.savePlan(db, {
     incidentId,
     runId,
-    proposal: result.data,
-    changes: buildChanges(result.data, impact),
-    inquiries: buildInquiries(result.data, impact, guidance),
-    attendeeDraft: result.data.attendeeUpdate,
+    proposal,
+    changes: buildChanges(proposal, impact),
+    inquiries: buildInquiries(proposal, impact, guidance),
+    attendeeDraft: proposal.attendeeUpdate,
   });
   return {
     outcome: "created",
-    message: provider.isMock
-      ? "Recovery proposal created by the mock AI (offline template). Nothing has been applied or sent."
-      : "Recovery proposal created. Nothing has been applied or sent: review it, choose the changes and ask for approval.",
+    message:
+      "Recovery proposal created. Nothing has been applied or sent: review it, choose the changes and ask for approval.",
   };
 }
 

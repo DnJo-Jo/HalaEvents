@@ -56,9 +56,11 @@ export default async function SettingsPage() {
                   Access: <Badge tone="info">Platform admin</Badge>
                 </p>
               )}
-              <ButtonLink href="/status" variant="ghost" size="sm">
-                System status
-              </ButtonLink>
+              {isAdmin && (
+                <ButtonLink href="/status" variant="ghost" size="sm">
+                  System status
+                </ButtonLink>
+              )}
             </CardBody>
           </Card>
         </div>

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { formFields, runAction } from "@/lib/action";
 import { AppError } from "@/lib/errors";
 import type { FormState } from "@/lib/forms";
-import { AiDraftInput, DecisionInput, DraftInput } from "./schemas";
+import { TemplateDraftInput, DecisionInput, DraftInput } from "./schemas";
 import * as service from "./service";
 
 const Id = z.uuid();
@@ -37,12 +37,12 @@ export async function saveDraftAction(
   });
 }
 
-export async function aiDraftAction(eventId: string, _prev: FormState, form: FormData) {
+export async function templateDraftAction(eventId: string, _prev: FormState, form: FormData) {
   if (!ids(eventId)) return unknown;
-  const parsed = AiDraftInput.safeParse(formFields(form));
+  const parsed = TemplateDraftInput.safeParse(formFields(form));
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0].message };
   return plain(async () => {
-    const r = await service.draftWithAi(eventId, parsed.data);
+    const r = await service.draftFromTemplate(eventId, parsed.data);
     return { ok: r.id !== null, message: r.message };
   });
 }

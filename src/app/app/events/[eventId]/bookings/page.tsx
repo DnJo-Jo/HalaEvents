@@ -166,3 +166,6 @@ export default async function BookingsPage({ params }: { params: Promise<{ event
     </div>
   );
 }
+
+/** Data-dependent route behind the app shell Suspense; blocking navigation is intended. */
+export const instant = false;

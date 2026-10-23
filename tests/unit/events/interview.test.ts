@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PlaybookSchema, type Playbook } from "@/modules/ai/playbook";
+import { PlaybookSchema, type Playbook } from "@/modules/planning/playbook";
 import {
   ROUND_SIZE,
   conditionHolds,
@@ -65,6 +65,7 @@ describe("playbook", () => {
     version: 1,
     eventType: "university_hackathon",
     title: "Test",
+    summary: "A test playbook used by the unit tests.",
   } as const;
   const bool = (key: string, when: unknown[] = []) => ({
     key,

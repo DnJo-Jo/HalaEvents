@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ActionForm } from "@/components/ui/action-form";
 import { Alert } from "@/components/ui/alert";
-import { Badge, MockBadge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormField } from "@/components/ui/form-field";
 import { Input, Select, Textarea } from "@/components/ui/input";
@@ -134,7 +134,6 @@ export default async function IncidentPage({
           <span className="flex gap-1.5">
             <Badge tone="warning">Simulated</Badge>
             <Badge>{INCIDENT_LABELS[incident.status]}</Badge>
-            {current?.is_mock && <MockBadge />}
           </span>
         }
       />
@@ -149,7 +148,7 @@ export default async function IncidentPage({
           1 · Original plan and affected items
         </h2>
         <p className="text-xs text-ink-muted">
-          Found by rules from recorded data at the time of the simulation, not by AI.
+          Worked out from the bookings and tasks recorded when the cancellation was simulated.
         </p>
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
@@ -315,15 +314,12 @@ export default async function IncidentPage({
             className="space-y-0"
           >
             <SubmitButton variant={proposal ? "secondary" : "primary"}>
-              {proposal
-                ? "Generate a new proposal"
-                : `Propose recovery with ${v.provider.isMock ? "mock AI" : "AI"}`}
+              {proposal ? "Generate a new proposal" : "Propose a recovery plan"}
             </SubmitButton>
             <p className="mt-2 text-xs text-ink-muted">
-              {v.provider.isMock
-                ? "AI is in mock mode: the proposal is an offline template built from the data above."
-                : "The AI sees the data above and the playbook, never attendee details. Its answer is checked against rules and discarded if it doesn't pass."}{" "}
-              A new proposal replaces an unapplied one and withdraws its drafts and approvals.
+              The proposal is built from the data above and the playbook&apos;s guidance, and
+              checked against the rules before it is saved. A new proposal replaces an unapplied one
+              and withdraws its drafts and approvals.
             </p>
           </ActionForm>
         )}
@@ -623,8 +619,8 @@ export default async function IncidentPage({
                     <p className="text-xs text-ink-muted">
                       Status: {attendeeMessage.status.replaceAll("_", " ")}
                       {messageApproval ? ` · approval ${messageApproval.status}` : ""}. It goes
-                      through the normal message approval and can only be sent through the mock
-                      transport, so no attendee receives it.{" "}
+                      through the normal message approval, and because this is a practice scenario
+                      no attendee receives it.{" "}
                       <Link href={`/app/events/${event.id}/messages`} className="underline">
                         Review and approve on the messages page
                       </Link>
@@ -711,3 +707,6 @@ export default async function IncidentPage({
     </div>
   );
 }
+
+/** Data-dependent route behind the app shell Suspense; blocking navigation is intended. */
+export const instant = false;

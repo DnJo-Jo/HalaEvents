@@ -1,21 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AiProvider, ProviderResult } from "@/lib/ai/types";
 import { createFakeState, fakeClient, member, type FakeState } from "../helpers/fake-supabase";
 import { IDS, makeImpact } from "./fixtures";
 import { resetRateLimits } from "@/lib/rate-limit";
 
-// Recovery orchestration with an in-memory Supabase double and a scripted AI provider. RLS and
+// Recovery orchestration with an in-memory Supabase double and no external service. RLS and
 // the RPC rules themselves are covered by tests/db/recovery.test.ts.
 
 let state: FakeState;
-let provider: AiProvider;
 
 vi.mock("@/lib/db/server", () => ({
   createSupabaseServerClient: vi.fn(async () => fakeClient(state)),
-}));
-vi.mock("@/modules/ai/provider", async (orig) => ({
-  ...(await orig<typeof import("@/modules/ai/provider")>()),
-  getAiProvider: () => provider,
 }));
 vi.mock("next/cache", () => ({ refresh: vi.fn() }));
 vi.mock("next/server", async (importOriginal) => ({
@@ -33,9 +27,6 @@ vi.mock("next/navigation", () => ({
 }));
 
 const actions = await import("@/modules/recovery/actions");
-const { createMockProvider } = await import("@/lib/ai/mock");
-const { MOCK_FIXTURES } = await import("@/modules/ai/provider");
-const { deterministicProposal } = await import("@/modules/recovery/rules");
 
 const EVENT = "11111111-1111-4111-8111-111111111111";
 const OTHER_EVENT = "22222222-2222-4222-8222-222222222222";
@@ -67,25 +58,7 @@ const RECOVERY_RPCS = [
 ];
 const reachedDatabase = () => state.rpcCalls.filter((c) => RECOVERY_RPCS.includes(c.fn));
 
-const ok = (data: unknown): ProviderResult => ({
-  ok: true,
-  text: JSON.stringify(data),
-  model: "gemini-test-001",
-  usage: { inputTokens: 900, outputTokens: 300 },
-});
-function scripted(results: ProviderResult[]): AiProvider & { calls: number } {
-  const p = {
-    name: "gemini" as const,
-    model: "gemini-test",
-    isMock: false,
-    calls: 0,
-    async generate() {
-      p.calls += 1;
-      return results.shift() ?? { ok: false, code: "provider_error", message: "no more" };
-    },
-  };
-  return p;
-}
+const fetchSpy = vi.fn();
 
 function setup(
   role: "owner" | "organizer" | "viewer" | null,
@@ -165,13 +138,17 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(`${TODAY}T08:00:00Z`));
   state = createFakeState({ sub: "user-1" });
-  provider = scripted([]);
+  fetchSpy.mockReset();
+  vi.stubGlobal("fetch", fetchSpy);
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://127.0.0.1:54321");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "public-key");
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
-describe("authorization: nothing reaches the database or the model for non-managers", () => {
+describe("authorization: nothing reaches the database for non-managers", () => {
   it("viewers, outsiders and other events' incidents are refused", async () => {
     for (const [role, message] of [
       ["viewer", /owner or organizers/],
@@ -179,8 +156,6 @@ describe("authorization: nothing reaches the database or the model for non-manag
     ] as const) {
       state = createFakeState({ sub: "user-1" });
       setup(role);
-      const p = scripted([]);
-      provider = p;
       for (const run of [
         () => actions.simulateAction(EVENT, {}, fd({ bookingId: IDS.venueBooking })),
         () => actions.generateRecoveryAction(EVENT, INCIDENT, {}, fd()),
@@ -203,7 +178,7 @@ describe("authorization: nothing reaches the database or the model for non-manag
         });
       }
       expect(reachedDatabase(), `${role}`).toEqual([]);
-      expect(p.calls).toBe(0);
+      expect(rpc("save_recovery_plan")).toEqual([]);
     }
   });
 
@@ -239,14 +214,12 @@ describe("authorization: nothing reaches the database or the model for non-manag
     expect(reachedDatabase()).toEqual([]);
   });
 
-  it("a closed incident cannot get a new proposal, and no model call is made", async () => {
+  it("a closed incident cannot get a new proposal, and nothing is stored", async () => {
     setup("owner", { incidentStatus: "resolved" });
-    const p = scripted([]);
-    provider = p;
     expect(await actions.generateRecoveryAction(EVENT, INCIDENT, {}, fd())).toMatchObject({
       ok: false,
     });
-    expect(p.calls).toBe(0);
+    expect(rpc("save_recovery_plan")).toEqual([]);
   });
 });
 
@@ -273,11 +246,21 @@ describe("idempotency", () => {
 });
 
 describe("generating a proposal", () => {
-  it("with the mock provider: stores a validated proposal; applies and sends nothing", async () => {
+  it("stores a rule-checked proposal from the playbook; applies and sends nothing", async () => {
     setup("owner");
-    provider = createMockProvider(MOCK_FIXTURES);
     const r = await actions.generateRecoveryAction(EVENT, INCIDENT, {}, fd());
-    expect(r).toMatchObject({ ok: true, message: expect.stringMatching(/mock AI/) });
+    expect(r).toMatchObject({
+      ok: true,
+      message: expect.stringMatching(/Nothing has been applied/),
+    });
+    expect(r.message).not.toMatch(/\bAI\b|mock|Mock/);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(rpc("start_ai_run")[0]).toMatchObject({
+      p_pipeline: "recovery",
+      p_provider: "playbook",
+      p_is_mock: false,
+    });
+    expect(rpc("finish_ai_run")[0]).toMatchObject({ p_status: "succeeded" });
     const [saved] = rpc("save_recovery_plan");
     expect(saved).toMatchObject({ p_incident_id: INCIDENT, p_ai_run_id: "run-1" });
     const changes = saved.p_changes as { kind: string; entity_type: string | null }[];
@@ -297,84 +280,11 @@ describe("generating a proposal", () => {
     }
   });
 
-  it("an invalid model proposal is repaired once, then discarded: nothing is stored", async () => {
+  it("the stored proposal never claims availability, prices or confirmations", async () => {
     setup("owner");
-    const bad = {
-      ...deterministicProposal(makeImpact(), TODAY),
-      taskChanges: [
-        { taskId: IDS.taskMenu, newDueDate: "2026-11-10", reason: "Not a venue task." },
-      ],
-    };
-    const p = scripted([ok(bad), ok(bad)]);
-    provider = p;
-    const r = await actions.generateRecoveryAction(EVENT, INCIDENT, {}, fd());
-    expect(r).toMatchObject({
-      ok: false,
-      message: expect.stringMatching(/didn't pass HalaEvents' checks/),
-    });
-    expect(p.calls).toBe(2);
-    expect(rpc("save_recovery_plan")).toEqual([]);
-    expect(rpc("finish_ai_run")[0]).toMatchObject({ p_status: "invalid_output" });
-  });
-
-  it("a proposal that claims availability, invents a price or names a venue to attendees is discarded", async () => {
-    setup("owner");
-    const base = deterministicProposal(makeImpact(), TODAY);
-    for (const bad of [
-      {
-        ...base,
-        summary: "Alternative Hall is available on the event dates, so the move is easy.",
-      },
-      { ...base, summary: "The replacement venue will cost AED 7,777 in total for the event." },
-      {
-        ...base,
-        attendeeUpdate: {
-          ...base.attendeeUpdate,
-          body: "Hello {{name}}, we are moving {{event_name}} to Alternative Hall, details soon.",
-        },
-      },
-      {
-        ...base,
-        taskChanges: [
-          {
-            taskId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
-            newDueDate: "2026-11-10",
-            reason: "Does not exist.",
-          },
-        ],
-      },
-    ]) {
-      state.rpcCalls.length = 0;
-      provider = scripted([ok(bad), ok(bad)]);
-      const r = await actions.generateRecoveryAction(EVENT, INCIDENT, {}, fd());
-      expect(r.ok).toBe(false);
-      expect(rpc("save_recovery_plan")).toEqual([]);
-    }
-  });
-
-  it("non-JSON output and provider failures store nothing and say so plainly", async () => {
-    setup("owner");
-    provider = scripted([ok("not an object"), ok([])]);
-    expect((await actions.generateRecoveryAction(EVENT, INCIDENT, {}, fd())).ok).toBe(false);
-    state.rpcCalls.length = 0;
-    provider = scripted([
-      { ok: false, code: "rate_limited", message: "429", retryAfterSeconds: 30 },
-    ]);
-    const r = await actions.generateRecoveryAction(EVENT, INCIDENT, {}, fd());
-    expect(r).toMatchObject({
-      ok: false,
-      message: expect.stringMatching(/usage limit[\s\S]*Nothing was changed/),
-    });
-    expect(rpc("save_recovery_plan")).toEqual([]);
-  });
-
-  it("a proposal that repairs on the second try is stored", async () => {
-    setup("owner");
-    const good = deterministicProposal(makeImpact(), TODAY);
-    provider = scripted([ok({ ...good, recommendedOptionKey: "nope" }), ok(good)]);
-    const r = await actions.generateRecoveryAction(EVENT, INCIDENT, {}, fd());
-    expect(r.ok).toBe(true);
-    expect(rpc("save_recovery_plan")).toHaveLength(1);
+    await actions.generateRecoveryAction(EVENT, INCIDENT, {}, fd());
+    const text = JSON.stringify(rpc("save_recovery_plan")[0]);
+    expect(text).not.toMatch(/is available|has been confirmed|is confirmed/i);
   });
 });
 

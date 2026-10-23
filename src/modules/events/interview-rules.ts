@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { QuestionKey, type Condition, type Playbook, type Question } from "@/modules/ai/playbook";
+import {
+  QuestionKey,
+  type Condition,
+  type Playbook,
+  type Question,
+} from "@/modules/planning/playbook";
 import type { EventStatus } from "./schemas";
 
 /**

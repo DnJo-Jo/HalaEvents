@@ -178,3 +178,6 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
     </div>
   );
 }
+
+/** Data-dependent route behind the app shell Suspense; blocking navigation is intended. */
+export const instant = false;

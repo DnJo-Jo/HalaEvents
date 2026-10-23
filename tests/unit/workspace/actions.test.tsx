@@ -440,7 +440,7 @@ describe("pages", () => {
     const { default: Page } = await import("@/app/app/events/[eventId]/compliance/[checkId]/page");
     const out = await html(Page({ params: Promise.resolve({ eventId: EVENT, checkId: CHECK }) }));
     expect(out).toContain("Why this was flagged");
-    expect(out).toContain("not by AI");
+    expect(out).toContain("Flagged by a fixed HalaEvents rule from your answers");
     expect(out).toContain("Not verified");
     expect(out).toContain("Search-result summary, not the page");
     expect(out).toContain("Demonstration only");

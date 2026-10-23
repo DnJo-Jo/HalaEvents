@@ -234,3 +234,6 @@ export default async function RespondPage({
     </div>
   );
 }
+
+/** Data-dependent route behind the app shell Suspense; blocking navigation is intended. */
+export const instant = false;

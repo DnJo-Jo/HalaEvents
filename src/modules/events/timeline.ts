@@ -39,10 +39,7 @@ export function describeTimelineEntry(e: TimelineEntry): string {
     case "task_dependencies":
       return e.action === "delete" ? "removed a task dependency" : "added a task dependency";
     case "ai_plans":
-      if (e.action === "insert")
-        return d.source === "ai"
-          ? "generated a plan proposal (AI)"
-          : "created a plan from the playbook (no AI)";
+      if (e.action === "insert") return "generated a draft plan";
       return changed ? `marked a plan ${human(d.to)}` : "updated a plan";
     case "ai_suggestions":
       return changed

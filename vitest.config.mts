@@ -1,5 +1,4 @@
 import { fileURLToPath } from "node:url";
-import { loadEnv } from "vite";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -36,18 +35,6 @@ export default defineConfig({
           sequence: { groupOrder: 1 },
           testTimeout: 30_000,
           hookTimeout: 60_000,
-        },
-      },
-      {
-        // Real Gemini calls (uses quota). Never part of `npm test`; run with `npm run test:ai-live`.
-        // Reads GEMINI_API_KEY / GEMINI_MODEL from the shell or .env.local; skips when they're unset.
-        extends: true,
-        test: {
-          name: "live",
-          environment: "node",
-          include: ["tests/live/**/*.test.ts"],
-          testTimeout: 120_000,
-          env: loadEnv("", process.cwd(), "GEMINI_"),
         },
       },
     ],

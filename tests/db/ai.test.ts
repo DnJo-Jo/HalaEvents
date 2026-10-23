@@ -1,4 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { buildPlan } from "@/modules/planning/engine";
+import { evidenceCatalog, planContext, resolvePlan } from "@/modules/planning/rules";
+import { PlanOverview, StoredTask } from "@/modules/planning/schemas";
+import { answerContext, eventContext, interviewState } from "@/modules/events/interview-rules";
+import { playbookFor } from "@/playbooks";
 import { TestDb } from "./harness";
 
 let db: TestDb;
@@ -167,6 +172,34 @@ describe("AI runs", () => {
         .user(owner)
         .error("select public.start_ai_run($1, 'plan', 'gemini', 'm', 'nothex', false)", [eventId]),
     ).toMatch(/input_hash_check/);
+  });
+
+  it("records rules runs ('playbook') and accepts the newer event types", async () => {
+    const [{ id }] = await db
+      .user(owner)
+      .query<{ id: string }>(
+        "select public.start_ai_run($1, 'recovery', 'playbook', 'rules', $2, false) as id",
+        [eventId, HASH],
+      );
+    await db
+      .user(owner)
+      .query("select public.finish_ai_run($1, 'succeeded', null, 1, 0, 0, 0, 'rules')", [id]);
+    for (const type of ["conference", "workshop"]) {
+      const rows = await db.user(owner).query<{ event_type: string }>(
+        `insert into public.events (owner_id, name, event_type, starts_at, ends_at, capacity)
+           values ($1, 'Typed event', $2, '2026-12-01T09:00:00+04', '2026-12-01T17:00:00+04', 50)
+           returning event_type`,
+        [owner, type],
+      );
+      expect(rows[0].event_type).toBe(type);
+    }
+    expect(
+      await db.user(owner).error(
+        `insert into public.events (owner_id, name, event_type, starts_at, ends_at, capacity)
+             values ($1, 'Bad', 'wedding', '2026-12-01T09:00:00+04', '2026-12-01T17:00:00+04', 50)`,
+        [owner],
+      ),
+    ).toMatch(/event_type_check/);
   });
 });
 
@@ -430,4 +463,62 @@ describe("plan overview", () => {
     const [{ id }] = await savePlan(owner, run, "ai", [task("t_overview2")]);
     await expect(db.user(owner).query(SET, [id, "[]"])).rejects.toThrow();
   });
+});
+
+describe("engine output against the real RPCs", () => {
+  it.each(["university_hackathon", "conference", "workshop"] as const)(
+    "a %s plan is accepted by save_ai_plan and set_ai_plan_overview and reads back",
+    async (type) => {
+      const id = await createEvent(owner);
+      const event = {
+        name: "AI Hackathon",
+        venue_type: "indoor",
+        capacity: 100,
+        starts_at: "2026-12-01T05:00:00Z",
+        ends_at: "2026-12-02T14:00:00Z",
+        city: "Dubai",
+        budget_amount: 40000,
+        timezone: "Asia/Dubai",
+        currency: "AED",
+      };
+      const playbook = playbookFor(type);
+      const state = interviewState(playbook, eventContext(event), {});
+      const ctx = answerContext(eventContext(event), state);
+      const pctx = planContext(event, evidenceCatalog(playbook, ctx, state));
+      const plan = buildPlan({ playbook, event, ctx, plan: pctx });
+      const tasks = resolvePlan(plan.tasks, pctx).map((t) => ({ key: t.tempId, payload: t }));
+      const [{ id: planId }] = await db
+        .user(owner)
+        .query<{ id: string }>(SAVE_PLAN.replace("'university-hackathon', 2", "$6, $7"), [
+          id,
+          null,
+          "playbook",
+          HASH,
+          JSON.stringify(tasks),
+          playbook.id,
+          playbook.version,
+        ]);
+      const overview = { ...plan, tasks: undefined, assumptions: undefined };
+      await db
+        .user(owner)
+        .query("select public.set_ai_plan_overview($1, $2::jsonb)", [
+          planId,
+          JSON.stringify(overview),
+        ]);
+      const [row] = await db
+        .user(owner)
+        .query<{ overview: unknown }>("select overview from public.ai_plans where id = $1", [
+          planId,
+        ]);
+      expect(PlanOverview.safeParse(row.overview).success).toBe(true);
+      const saved = await db
+        .user(owner)
+        .query<{ payload: unknown }>(
+          "select payload from public.ai_suggestions where plan_id = $1",
+          [planId],
+        );
+      expect(saved).toHaveLength(tasks.length);
+      expect(saved.every((r) => StoredTask.safeParse(r.payload).success)).toBe(true);
+    },
+  );
 });

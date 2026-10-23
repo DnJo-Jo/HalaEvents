@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ActionForm } from "@/components/ui/action-form";
 import { Alert } from "@/components/ui/alert";
-import { Badge, MockBadge } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FormField } from "@/components/ui/form-field";
@@ -13,7 +13,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { formatInZone } from "@/lib/dates";
 import {
-  aiDraftAction,
+  templateDraftAction,
   cancelMessageAction,
   decideApprovalAction,
   requestSendApprovalAction,
@@ -106,7 +106,7 @@ export default async function MessagesPage({ params }: { params: Promise<{ event
         description="Drafts → approval of the exact text and recipients → send. Editing anything after a request needs a new approval."
         badge={
           v.transport.isSimulated ? (
-            <MockBadge />
+            <Badge tone="warning">Test mode</Badge>
           ) : (
             <Badge tone="primary">Email via {v.transport.name}</Badge>
           )
@@ -120,9 +120,9 @@ export default async function MessagesPage({ params }: { params: Promise<{ event
       ) : (
         <>
           {v.transport.isSimulated && (
-            <Alert tone="warning" title="Simulated sending">
-              Email is in mock mode: “sending” records a simulated delivery for each recipient and
-              emails nobody. Set EMAIL_PROVIDER=resend with a verified sender to send for real.
+            <Alert tone="warning" title="Test mode: no real emails">
+              Real email delivery isn&apos;t switched on for this workspace. “Sending” records a
+              test delivery for each recipient so you can check the whole flow, and emails nobody.
             </Alert>
           )}
 
@@ -154,23 +154,23 @@ export default async function MessagesPage({ params }: { params: Promise<{ event
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Draft with AI</CardTitle>
+                <CardTitle>Start from a template</CardTitle>
               </CardHeader>
               <CardBody className="space-y-3 text-sm">
                 <p className="text-ink-muted">
-                  The AI gets the event name, the kind of message and your notes, never attendee
-                  details. Its text is checked (placeholders, no links, no claims about permits or
-                  bookings) and saved as a draft for you to edit. It can&apos;t send anything.
+                  Pick the kind of message and we&apos;ll fill in a ready-made draft with the event
+                  details. Replace anything in [brackets], edit the rest, then ask for approval.
+                  Nothing is sent until it has been approved.
                 </p>
-                <ActionForm action={aiDraftAction.bind(null, event.id)}>
+                <ActionForm action={templateDraftAction.bind(null, event.id)}>
                   <AudienceFields attendees={v.attendees} />
                   <FormField
-                    label="Notes for the draft"
+                    label="Extra details to add"
                     hint="e.g. “doors open 8:30, bring a laptop”"
                   >
                     <Textarea name="instructions" maxLength={500} rows={3} />
                   </FormField>
-                  <SubmitButton variant="secondary">Draft with AI</SubmitButton>
+                  <SubmitButton variant="secondary">Create draft</SubmitButton>
                 </ActionForm>
               </CardBody>
             </Card>
@@ -179,7 +179,7 @@ export default async function MessagesPage({ params }: { params: Promise<{ event
           {v.messages.length === 0 ? (
             <EmptyState
               title="No messages yet"
-              description="Write a draft or ask the AI for one."
+              description="Write a draft, or start from a template."
             />
           ) : (
             <ul className="space-y-4">
@@ -216,12 +216,7 @@ export default async function MessagesPage({ params }: { params: Promise<{ event
                             {m.recovery_plan_id && (
                               <Badge tone="warning">Simulated recovery · never sent for real</Badge>
                             )}
-                            {m.drafted_by === "ai" &&
-                              (m.is_mock_draft ? (
-                                <MockBadge />
-                              ) : (
-                                <Badge tone="accent">AI draft</Badge>
-                              ))}
+                            {m.drafted_by === "ai" && <Badge tone="accent">Generated draft</Badge>}
                           </div>
                         </div>
 
@@ -407,3 +402,6 @@ export default async function MessagesPage({ params }: { params: Promise<{ event
     </div>
   );
 }
+
+/** Data-dependent route behind the app shell Suspense; blocking navigation is intended. */
+export const instant = false;

@@ -91,7 +91,7 @@ const KNOWN_RULES: Record<string, [AppErrorCode, string]> = {
   already_executed: ["conflict", "This approval was already used. Nothing was sent twice."],
   not_approved: ["invalid_transition", "This needs an approved approval first."],
   invalid_results: ["internal", "The delivery results didn't match the approved message."],
-  run_not_usable: ["validation_failed", "That AI draft can't be used."],
+  run_not_usable: ["validation_failed", "That draft can't be used."],
   // Bookings (0011)
   quote_not_bookable: [
     "conflict",
@@ -119,7 +119,7 @@ const KNOWN_RULES: Record<string, [AppErrorCode, string]> = {
     "validation_failed",
     "The recovery plan referenced something that isn't part of this incident, so it was discarded.",
   ],
-  run_already_used: ["conflict", "That AI result was already saved as a plan."],
+  run_already_used: ["conflict", "That result was already saved as a plan."],
   nothing_selected: ["validation_failed", "Select at least one change to apply."],
   plan_not_applied: ["invalid_transition", "Apply an approved recovery plan before resolving."],
   // Reviews (0009_reviews)
@@ -132,10 +132,7 @@ const KNOWN_RULES: Record<string, [AppErrorCode, string]> = {
   duplicate_response: ["conflict", "This review already has a response."],
   duplicate_report: ["conflict", "You already reported this review."],
   invalid_rating: ["validation_failed", "Choose a rating from 1 to 5."],
-  simulated_only: [
-    "conflict",
-    "Messages of a simulated recovery are never sent for real, only through the mock transport.",
-  ],
+  simulated_only: ["conflict", "Messages of a practice recovery are never sent for real."],
 };
 
 interface PgLikeError {

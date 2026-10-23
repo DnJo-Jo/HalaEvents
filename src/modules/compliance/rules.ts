@@ -1,4 +1,4 @@
-import type { Condition, Playbook, Question } from "@/modules/ai/playbook";
+import type { Condition, Playbook, Question } from "@/modules/planning/playbook";
 import { conditionHolds, formatAnswer, type Context } from "@/modules/events/interview-rules";
 import type { ComplianceCategory, ComplianceItem, ComplianceStatus } from "./schemas";
 

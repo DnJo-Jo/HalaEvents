@@ -11,7 +11,7 @@ import { Card, CardBody, CardDescription, CardHeader, CardTitle } from "@/compon
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { dismissSuggestionAction, suggestFollowUpsAction } from "@/modules/ai/actions";
+import { dismissSuggestionAction } from "@/modules/planning/actions";
 import { saveInterviewAction } from "@/modules/events/actions";
 import { formatAnswer } from "@/modules/events/interview-rules";
 import { getInterview } from "@/modules/events/service";
@@ -29,11 +29,9 @@ export default async function InterviewPage({ params }: { params: Promise<{ even
     ]),
   );
   labels.form = "Form";
-  labels.note = "Change request";
-  const playbookPending = state.next.some((q) => !followUps.has(q.key));
-  const ai = (key: string) => {
+  const followUp = (key: string) => {
     const f = followUps.get(key);
-    return f && { suggestionId: f.id, isMock: f.isMock };
+    return f && { suggestionId: f.id };
   };
 
   return (
@@ -53,11 +51,10 @@ export default async function InterviewPage({ params }: { params: Promise<{ even
         }
       />
 
-      <Alert title="Questions come from the HalaEvents playbook">
-        Each question appears because of the event details or an earlier answer. After them you can
-        ask the AI assistant for optional follow-ups. Answers are sent to the AI service when you
-        request suggestions or a plan, so don&rsquo;t include personal data. Nothing here is a legal
-        or permit requirement.
+      <Alert title="Why you are asked these questions">
+        Each question appears because of your event type, your event details or an earlier answer.
+        You don&rsquo;t have to answer everything: the plan states an assumption for anything left
+        open. Nothing here is a legal or permit requirement.
       </Alert>
 
       {!canEdit && (
@@ -80,17 +77,18 @@ export default async function InterviewPage({ params }: { params: Promise<{ even
               <CardHeader>
                 <CardTitle>Next questions</CardTitle>
                 <CardDescription>
-                  Questions marked * need an answer. Saving can bring up follow-up questions.
+                  Questions marked * matter most for the plan. Saving can bring up further
+                  questions.
                 </CardDescription>
               </CardHeader>
               <CardBody className="space-y-6">
                 {state.next.map((q) => (
-                  <InterviewQuestion key={q.key} question={q} isNew ai={ai(q.key)} />
+                  <InterviewQuestion key={q.key} question={q} isNew followUp={followUp(q.key)} />
                 ))}
               </CardBody>
             </Card>
           ) : (
-            <Alert tone="success" title="Every playbook question is answered">
+            <Alert tone="success" title="Every question is answered">
               Changing an answer below can bring up new questions.
             </Alert>
           )}
@@ -109,7 +107,7 @@ export default async function InterviewPage({ params }: { params: Promise<{ even
                     key={question.key}
                     question={question}
                     value={value}
-                    ai={ai(question.key)}
+                    followUp={followUp(question.key)}
                   />
                 ))}
               </CardBody>
@@ -159,7 +157,7 @@ export default async function InterviewPage({ params }: { params: Promise<{ even
           <CardDescription>
             {missing.length === 0
               ? "There's enough information to generate a useful plan."
-              : "The plan needs these answers first:"}
+              : "You can generate a draft now. These answers would make it more accurate:"}
           </CardDescription>
         </CardHeader>
         <CardBody className="space-y-4">
@@ -177,18 +175,12 @@ export default async function InterviewPage({ params }: { params: Promise<{ even
             >
               Go to the plan
             </ButtonLink>
-            {canEdit && !playbookPending && (
-              <ActionForm
-                action={suggestFollowUpsAction.bind(null, event.id)}
-                aria-label="Suggest follow-up questions"
-                className="space-y-2"
-              >
-                <SubmitButton variant="secondary">Suggest follow-up questions (AI)</SubmitButton>
-              </ActionForm>
-            )}
           </div>
         </CardBody>
       </Card>
     </div>
   );
 }
+
+/** Data-dependent route behind the app shell Suspense; blocking navigation is intended. */
+export const instant = false;

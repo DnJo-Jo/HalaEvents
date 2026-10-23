@@ -1,6 +1,6 @@
 import "server-only";
 import { createSupabaseServerClient } from "@/lib/db/server";
-import { missingInformation } from "@/modules/ai/rules";
+import { missingInformation } from "@/modules/planning/rules";
 import * as eventsRepo from "@/modules/events/repo";
 import { planningContext } from "@/modules/events/service";
 import { requireMember } from "@/modules/profiles/service";

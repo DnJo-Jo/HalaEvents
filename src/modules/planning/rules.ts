@@ -3,12 +3,12 @@ import {
   type Context,
   type InterviewState,
 } from "@/modules/events/interview-rules";
-import { findCycle, type Playbook, type Question } from "./playbook";
-import type { FollowUpOutput, PlanOutput, StoredTask, TaskProposal } from "./schemas";
+import { findCycle, type Playbook } from "./playbook";
+import type { PlanOutput, StoredTask, TaskProposal } from "./schemas";
 
 /**
- * Deterministic checks and transformations around AI output (event.md §6.2–6.3, §17.4).
- * Pure functions, unit-tested in tests/unit/ai/rules.test.ts. The model proposes; this file
+ * Deterministic checks and transformations around a generated plan (event.md §6.2–6.3, §17.4).
+ * Pure functions, unit-tested in tests/unit/planning/rules.test.ts. The engine proposes; this file
  * decides what is valid, resolves dates and keeps the dependency graph acyclic.
  */
 
@@ -45,7 +45,7 @@ export interface PlanContext {
   startDate: string;
   endDate: string;
   today: string;
-  /** Evidence ids the model may cite → human label. */
+  /** Evidence ids a plan may cite → human label. */
   evidence: Map<string, string>;
 }
 
@@ -72,7 +72,7 @@ function textFields(t: TaskProposal): string[] {
   return [t.title, t.description, t.proposedOwner, t.uncertainty, t.nextAction, ...t.requiredInfo];
 }
 
-/** Business-rule errors for a model plan. Empty = valid. Messages are fed back in the repair turn. */
+/** Business-rule errors for a generated plan. Empty = valid. */
 export function validatePlan(plan: PlanOutput, ctx: PlanContext): string[] {
   const errors: string[] = [];
   const ids = plan.tasks.map((t) => t.tempId);
@@ -101,13 +101,23 @@ export function validatePlan(plan: PlanOutput, ctx: PlanContext): string[] {
     errors.push("assumptions: don't include URLs.");
   const overviewText = [
     plan.summary,
+    plan.budgetSummary,
+    ...plan.goals,
     ...plan.requirements,
     ...plan.missingInformation,
+    ...plan.decisions,
+    ...plan.followUpQuestions.flatMap((q) => [q.question, q.why]),
     ...plan.budgetCategories.flatMap((b) => [b.name, b.note]),
-    ...plan.risks.flatMap((r) => [r.title, r.mitigation]),
+    ...plan.risks.flatMap((r) => [r.title, r.mitigation, r.contingency]),
+    ...plan.schedule.flatMap((b) => [b.title, b.note]),
   ];
   if (overviewText.some((x) => URL_LIKE.test(x)))
     errors.push("overview: don't include URLs or web addresses.");
+  plan.schedule.forEach((b, i) => {
+    const prev = plan.schedule[i - 1];
+    if (prev && `${prev.date} ${prev.start}` > `${b.date} ${b.start}`)
+      errors.push(`schedule[${i}]: blocks must be in time order.`);
+  });
   return errors;
 }
 
@@ -159,21 +169,6 @@ export function resolvePlan(tasks: TaskProposal[], ctx: PlanContext): StoredTask
   return resolved;
 }
 
-/** A revised task must keep its id and fit the rest of the plan (dependencies, cycles, evidence, dates). */
-export function validateRevision(
-  revised: TaskProposal,
-  original: StoredTask,
-  others: StoredTask[],
-  ctx: PlanContext,
-): string[] {
-  if (revised.tempId !== original.tempId) return [`task.tempId must stay "${original.tempId}".`];
-  const errors = validatePlan(
-    { ...EMPTY_OVERVIEW, tasks: [...others, revised], assumptions: [] },
-    ctx,
-  );
-  return errors.map((e) => e.replace(/^tasks\[\d+\] \(([^)]+)\)/, "task ($1)"));
-}
-
 // ------------------------------------------------------------------------------------------------
 // Playbook-derived context
 // ------------------------------------------------------------------------------------------------
@@ -214,101 +209,4 @@ export function evidenceCatalog(
       ev.set(`playbook:topic.${c.key}`, `Playbook topic: ${c.title} (not verified)`);
   }
   return ev;
-}
-
-const EMPTY_OVERVIEW = {
-  summary: "Revised task.",
-  requirements: [],
-  missingInformation: [],
-  budgetCategories: [],
-  risks: [],
-};
-
-/** The plan built from the playbook alone: the mock provider's output and the no-AI fallback. */
-export function playbookPlan(
-  playbook: Playbook,
-  ctx: Context,
-  evidence: Map<string, string>,
-): PlanOutput {
-  const templates = playbook.taskTemplates.filter((t) => conditionsHold(t.when, ctx));
-  const keys = new Set(templates.map((t) => t.key));
-  const questionText = new Map(playbook.questions.map((q) => [q.key, q.text]));
-  const risks = playbook.riskCategories.filter((r) => conditionsHold(r.when, ctx));
-  return {
-    summary: "Plan built from the HalaEvents playbook and your interview answers, without AI.",
-    requirements: [],
-    missingInformation: [],
-    budgetCategories: [],
-    risks: risks.slice(0, 10).map((r) => ({
-      title: r.label.slice(0, 100),
-      mitigation: "Review the related tasks and checks in this plan.",
-      likelihood: "medium" as const,
-    })),
-    tasks: templates.map((t) => ({
-      tempId: t.key,
-      title: t.title,
-      description: t.description,
-      category: t.category,
-      priority: t.priority,
-      due: { type: "relative", anchor: t.due.anchor, offsetDays: t.due.offsetDays, date: "" },
-      proposedOwner: t.ownerRole,
-      dependsOn: t.dependsOn.filter((d) => keys.has(d)),
-      requiredInfo: t.requiredInfo.map((k) => questionText.get(k) ?? k).slice(0, 5),
-      evidenceIds: [`playbook:task.${t.key}`, ...t.requiredInfo.map((k) => `answer:${k}`)]
-        .filter((id) => evidence.has(id))
-        .slice(0, 6),
-      confidence: "medium",
-      uncertainty: "",
-      nextAction: t.nextAction,
-    })),
-    assumptions: ["Built from the HalaEvents playbook and your answers, without AI."],
-  };
-}
-
-// ------------------------------------------------------------------------------------------------
-// Interview follow-ups
-// ------------------------------------------------------------------------------------------------
-
-/** Live (non-dismissed) AI follow-up questions an event may have. */
-export const MAX_FOLLOW_UPS = 15;
-
-const normalize = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-
-/**
- * Keeps only new, well-formed follow-ups: no reused keys (answered, dismissed or playbook), no
- * question whose wording matches one already asked, no URLs, and within the per-event limit.
- * Single-choice questions with fewer than two distinct options become free-text questions.
- */
-export function filterFollowUps(
-  output: FollowUpOutput,
-  existing: { keys: Set<string>; texts: string[]; liveCount: number },
-): Question[] {
-  const keys = new Set(existing.keys);
-  const texts = new Set(existing.texts.map(normalize));
-  const out: Question[] = [];
-  for (const f of output.questions) {
-    if (existing.liveCount + out.length >= MAX_FOLLOW_UPS) break;
-    if (keys.has(f.key) || texts.has(normalize(f.text))) continue;
-    if ([f.text, f.why, ...f.options].some((s) => URL_LIKE.test(s))) continue;
-    keys.add(f.key);
-    texts.add(normalize(f.text));
-    const options = [...new Set(f.options.map((o) => o.trim()).filter(Boolean))];
-    const base = { key: f.key, text: f.text, why: f.why, required: false, when: [] };
-    out.push(
-      f.type === "boolean"
-        ? { ...base, type: "boolean" }
-        : f.type === "single_choice" && options.length >= 2
-          ? {
-              ...base,
-              type: "single_choice",
-              options: options.map((label, i) => ({ value: `option_${i + 1}`, label })),
-            }
-          : { ...base, type: "text", maxLength: 300 },
-    );
-  }
-  return out;
 }

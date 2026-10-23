@@ -386,3 +386,6 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
     </div>
   );
 }
+
+/** Data-dependent route behind the app shell Suspense; blocking navigation is intended. */
+export const instant = false;
