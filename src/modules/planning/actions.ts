@@ -25,15 +25,20 @@ async function run(
   }
 }
 
-/** Bound to the event id. The submit button's `intent=regenerate` replaces an existing plan. */
+/**
+ * Bound to the event id. The submit button's `intent=regenerate` replaces an existing plan, and
+ * `mode=custom` asks for a generated draft instead of the template (the default).
+ */
 export async function generatePlanAction(
   eventId: string,
   _prev: FormState,
   form: FormData,
 ): Promise<FormState> {
   if (!Id.safeParse(eventId).success) return { ok: false, message: "Unknown event." };
-  const regenerate = formFields(form).intent === "regenerate";
-  return run(() => service.generatePlan(eventId, { regenerate }));
+  const fields = formFields(form);
+  const regenerate = fields.intent === "regenerate";
+  const mode = fields.mode === "custom" ? "custom" : "template";
+  return run(() => service.generatePlan(eventId, { regenerate, mode }));
 }
 
 export async function dismissSuggestionAction(

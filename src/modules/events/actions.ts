@@ -50,6 +50,29 @@ export async function saveInterviewAction(
   }
 }
 
+/** "Additional event details" form on the interview page (bound to the event id). */
+export async function saveEventDetailsAction(
+  eventId: string,
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  if (!z.uuid().safeParse(eventId).success) return { ok: false, message: "Unknown event." };
+  try {
+    const result = await service.saveEventDetails(eventId, formFields(form));
+    if (!result.ok) return { ok: false, fieldErrors: result.fieldErrors };
+    refresh();
+    return {
+      ok: true,
+      message: result.cleared
+        ? "Additional details removed."
+        : "Additional details saved. Regenerate the plan to use them.",
+    };
+  } catch (e) {
+    if (e instanceof AppError) return { ok: false, message: e.message };
+    throw e;
+  }
+}
+
 export async function updateEventAction(
   eventId: string,
   _prev: FormState,

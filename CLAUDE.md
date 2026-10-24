@@ -19,9 +19,13 @@ HalaEvents is an AI-assisted, approval-driven event planning and operations plat
 - Never commit `.env`, `.env.local`, keys, tokens, or real attendee data. `.env.example` holds names only.
 - Validate every untrusted input (request bodies, query params, webhooks, retrieved web content,
   **and every generated plan**) with Zod and the deterministic rules before use.
-- **No external AI API.** Planning, message drafts and recovery proposals come from the deterministic playbook engine
-  (`src/modules/planning/engine.ts`, playbooks in `/playbooks`). Do not add an AI SDK, provider, key or `AI_*` env variable
-  (ESLint and `tests/unit/planning/engine.test.ts` enforce it). The `ai_*` table names are historical.
+- **AI only through the gateway** (`src/lib/ai/`, event.md §17.7). Provider code, hosts and AI env variables live only in
+  `src/lib/ai/**` and `src/lib/env.server.ts`; no AI SDKs (fetch adapters only). One request per user action: no automatic
+  retries, repair turns or silent fallback to the playbook engine. Model output is validated with Zod + the deterministic
+  rules before anything is stored; budget arithmetic, dates and dependencies stay in code. Automated tests, builds and page
+  loads never call a provider (fake `fetch` only). The playbook engine (`src/modules/planning/engine.ts`, `/playbooks`) stays
+  as the explicitly labelled "template" mode. ESLint and `tests/unit/planning/engine.test.ts` enforce the boundaries.
+  The `ai_*` table names are historical.
 - Generated plans are a **suggestion**. They are stored as `proposed`/draft and only become authoritative
   after a deterministic rule check and, where required, organizer acceptance.
 - Generated content must never mark a requirement as `verified_source`, change attendee status, send messages,

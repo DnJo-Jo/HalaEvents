@@ -40,9 +40,11 @@ describe("parseServerEnv", () => {
   });
 
   it("ignores variables for removed AI providers instead of requiring them", () => {
-    expect(() =>
-      parseServerEnv({ AI_PROVIDER: "gemini", GEMINI_API_KEY: SECRET, GROQ_API_KEY: SECRET }),
-    ).not.toThrow();
+    expect(
+      parseServerEnv({ AI_PROVIDER: "gemini", GEMINI_API_KEY: SECRET, GROQ_API_KEY: SECRET })
+        .AI_PROVIDER,
+    ).toBe("none");
+    expect(() => parseServerEnv({ AI_PROVIDER: "something-else" })).toThrow(/AI_PROVIDER/);
   });
 
   it("never includes variable values in the error message", () => {

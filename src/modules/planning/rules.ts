@@ -121,6 +121,21 @@ export function validatePlan(plan: PlanOutput, ctx: PlanContext): string[] {
   return errors;
 }
 
+/**
+ * Extra checks for plans whose overview a model wrote (full custom drafts): the schedule must sit
+ * on the event's days with blocks that end after they start. Template/hybrid schedules come from
+ * the engine and are covered by its tests.
+ */
+export function fullPlanErrors(plan: PlanOutput, ctx: PlanContext): string[] {
+  const errors: string[] = [];
+  plan.schedule.forEach((b, i) => {
+    if (!isRealDate(b.date) || b.date < ctx.startDate || b.date > ctx.endDate)
+      errors.push(`schedule[${i}].date: ${b.date} is not an event day.`);
+    if (!(b.start < b.end)) errors.push(`schedule[${i}]: must end after it starts.`);
+  });
+  return errors;
+}
+
 function dueErrors(t: TaskProposal, at: string, ctx: PlanContext): string[] {
   if (t.due.type === "relative") return [];
   if (!isRealDate(t.due.date))

@@ -3,7 +3,14 @@ import { z } from "zod";
 import type { SupabaseServerClient } from "@/lib/db/server";
 import { fromDbError } from "@/lib/errors";
 import type { Question } from "./playbook";
-import { PlanOverview, PlanSource, StoredFollowUp, StoredTask, SuggestionStatus } from "./schemas";
+import {
+  PlanOverview,
+  PlanSource,
+  StoredFollowUp,
+  StoredTask,
+  SuggestionStatus,
+  type AiRunStatus,
+} from "./schemas";
 
 /**
  * DB access for ai_runs, ai_plans and ai_suggestions. The table names predate the move to the
@@ -20,33 +27,74 @@ export async function startRun(
     eventId: string;
     pipeline: RunPipeline;
     inputHash: string;
+    /** Defaults to a rules run ("playbook"/"rules"), as used by venue recovery. */
+    provider?: "playbook" | "cloudflare";
+    model?: string;
+    promptVersion?: string;
   },
 ): Promise<string> {
   const { data, error } = await db.rpc("start_ai_run", {
     p_event_id: run.eventId,
     p_pipeline: run.pipeline,
-    p_provider: "playbook",
-    p_model: "rules",
+    p_provider: run.provider ?? "playbook",
+    p_model: run.model ?? "rules",
     p_input_hash: run.inputHash,
     p_is_mock: false,
+    ...(run.promptVersion ? { p_prompt_version: run.promptVersion } : {}),
   });
   if (error) throw fromDbError(error);
   return z.string().parse(data);
 }
 
-/** Marks a rules run as done. Rules runs don't fail halfway: nothing external is called. */
-export async function finishRun(db: SupabaseServerClient, runId: string): Promise<void> {
+export interface RunOutcome {
+  status: AiRunStatus;
+  errorCode?: string | null;
+  /** Provider requests made (0 when refused before sending). */
+  attempts?: number;
+  latencyMs?: number;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+}
+
+/** Closes a run. Without an outcome it records a successful rules run (nothing external called). */
+export async function finishRun(
+  db: SupabaseServerClient,
+  runId: string,
+  outcome: RunOutcome = {
+    status: "succeeded",
+    attempts: 1,
+    latencyMs: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+  },
+): Promise<void> {
   const { error } = await db.rpc("finish_ai_run", {
     p_run_id: runId,
-    p_status: "succeeded",
-    p_error_code: null,
-    p_attempts: 1,
-    p_latency_ms: 0,
-    p_input_tokens: 0,
-    p_output_tokens: 0,
-    p_model: "rules",
+    p_status: outcome.status,
+    p_error_code: outcome.errorCode ?? null,
+    p_attempts: outcome.attempts ?? 1,
+    p_latency_ms: outcome.latencyMs ?? 0,
+    p_input_tokens: outcome.inputTokens ?? null,
+    p_output_tokens: outcome.outputTokens ?? null,
+    p_model: "",
   });
   if (error) throw fromDbError(error);
+}
+
+/** Model and prompt version of a run (managers only under RLS; null when not visible). */
+export async function getRunMeta(
+  db: SupabaseServerClient,
+  runId: string,
+): Promise<{ model: string; promptVersion: string | null } | null> {
+  const { data, error } = await db
+    .from("ai_runs")
+    .select("model, prompt_version")
+    .eq("id", runId)
+    .maybeSingle();
+  if (error) throw fromDbError(error);
+  if (!data) return null;
+  const row = z.object({ model: z.string(), prompt_version: z.string().nullable() }).parse(data);
+  return { model: row.model, promptVersion: row.prompt_version };
 }
 
 const PlanRow = z.object({

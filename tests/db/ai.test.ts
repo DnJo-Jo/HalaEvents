@@ -487,17 +487,31 @@ describe("engine output against the real RPCs", () => {
       const pctx = planContext(event, evidenceCatalog(playbook, ctx, state));
       const plan = buildPlan({ playbook, event, ctx, plan: pctx });
       const tasks = resolvePlan(plan.tasks, pctx).map((t) => ({ key: t.tempId, payload: t }));
+      // No answers: the most assumptions a plan carries (the hackathon has 9, above the old cap of 8).
+      if (type === "university_hackathon") expect(plan.assumptions.length).toBeGreaterThan(8);
       const [{ id: planId }] = await db
         .user(owner)
-        .query<{ id: string }>(SAVE_PLAN.replace("'university-hackathon', 2", "$6, $7"), [
-          id,
-          null,
-          "playbook",
-          HASH,
-          JSON.stringify(tasks),
-          playbook.id,
-          playbook.version,
-        ]);
+        .query<{ id: string }>(
+          SAVE_PLAN.replace("'university-hackathon', 2", "$6, $7").replace(
+            `'["assumption"]'::jsonb`,
+            "$8::jsonb",
+          ),
+          [
+            id,
+            null,
+            "playbook",
+            HASH,
+            JSON.stringify(tasks),
+            playbook.id,
+            playbook.version,
+            JSON.stringify(plan.assumptions),
+          ],
+        );
+      const [{ assumptions }] = await db.sql<{ assumptions: string[] }>(
+        "select assumptions from public.ai_plans where id = $1",
+        [planId],
+      );
+      expect(assumptions).toEqual(plan.assumptions);
       const overview = { ...plan, tasks: undefined, assumptions: undefined };
       await db
         .user(owner)
@@ -521,4 +535,77 @@ describe("engine output against the real RPCs", () => {
       expect(saved.every((r) => StoredTask.safeParse(r.payload).success)).toBe(true);
     },
   );
+});
+
+describe("generated drafts: provider and prompt version (20261024000003)", () => {
+  it("records a cloudflare run with model and prompt version, then saves an 'ai' plan from it", async () => {
+    const id = await createEvent(owner);
+    const [{ id: runId }] = await db
+      .user(owner)
+      .query<{ id: string }>(
+        "select public.start_ai_run($1, 'plan', 'cloudflare', '@cf/test/model-1', $2, false, 'planning.plan@1') as id",
+        [id, HASH],
+      );
+    await db
+      .user(owner)
+      .query("select public.finish_ai_run($1, 'succeeded', null, 1, 2100, 1450, 820, '')", [runId]);
+    const [run] = await db.sql<Record<string, unknown>>(
+      "select provider, model, prompt_version, input_tokens, output_tokens, latency_ms, attempts from public.ai_runs where id = $1",
+      [runId],
+    );
+    expect(run).toEqual({
+      provider: "cloudflare",
+      model: "@cf/test/model-1",
+      prompt_version: "planning.plan@1",
+      input_tokens: 1450,
+      output_tokens: 820,
+      latency_ms: 2100,
+      attempts: 1,
+    });
+    const [{ id: planId }] = await savePlan(owner, runId, "ai", [task("t_one")], id);
+    const [plan] = await db.sql<{ source: string; ai_run_id: string }>(
+      "select source, ai_run_id from public.ai_plans where id = $1",
+      [planId],
+    );
+    expect(plan).toEqual({ source: "ai", ai_run_id: runId });
+  });
+
+  it("rejects unknown providers and malformed prompt versions; 6-argument calls still work", async () => {
+    const id = await createEvent(owner);
+    expect(
+      await db
+        .user(owner)
+        .error("select public.start_ai_run($1, 'plan', 'someone-else', 'm', $2, false)", [
+          id,
+          HASH,
+        ]),
+    ).toMatch(/ai_runs_provider_check/);
+    expect(
+      await db
+        .user(owner)
+        .error(
+          "select public.start_ai_run($1, 'plan', 'cloudflare', 'm', $2, false, 'Bad Version')",
+          [id, HASH],
+        ),
+    ).toMatch(/prompt_version/);
+    const runId = await startRun(owner, "plan", id);
+    const [run] = await db.sql<{ prompt_version: string | null }>(
+      "select prompt_version from public.ai_runs where id = $1",
+      [runId],
+    );
+    expect(run.prompt_version).toBeNull();
+  });
+
+  it("viewers, outsiders and anon can't start runs", async () => {
+    const id = await createEvent(owner);
+    await db.sql(
+      "insert into public.event_members (event_id, user_id, role) values ($1, $2, 'viewer')",
+      [id, viewer],
+    );
+    const call =
+      "select public.start_ai_run($1, 'plan', 'cloudflare', 'm', $2, false, 'planning.plan@1')";
+    expect(await db.user(viewer).error(call, [id, HASH])).toBeTruthy();
+    expect(await db.user(outsider).error(call, [id, HASH])).toBeTruthy();
+    expect(await db.anon.error(call, [id, HASH])).toMatch(/permission denied/);
+  });
 });

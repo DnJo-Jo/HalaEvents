@@ -19,6 +19,11 @@ export const ENGINE_VERSION = 1;
 
 /** Below this many days to the first day, the plan is compressed and a risk is added. */
 export const SHORT_LEAD_DAYS = 14;
+/** Risks computed from event facts (not playbook text); generated drafts keep them too. */
+export const COMPUTED_RISK_TITLES = {
+  shortLead: "Short lead time",
+  overBudget: "Estimated costs exceed the budget",
+} as const;
 
 export interface EngineEvent {
   name: string;
@@ -327,7 +332,7 @@ export function buildPlan(input: EngineInput): PlanOutput {
   }));
   if (short) {
     risks.push({
-      title: "Short lead time",
+      title: COMPUTED_RISK_TITLES.shortLead,
       mitigation: `Only ${Math.max(lead, 0)} day${lead === 1 ? "" : "s"} remain before the first day: do the critical tasks first and drop what isn't essential.`,
       likelihood: "high",
       contingency:
@@ -336,7 +341,7 @@ export function buildPlan(input: EngineInput): PlanOutput {
   }
   if (budget.overBudget) {
     risks.push({
-      title: "Estimated costs exceed the budget",
+      title: COMPUTED_RISK_TITLES.overBudget,
       mitigation:
         "Compare the illustrative allowances with real quotes and cut or reduce the largest lines first.",
       likelihood: "medium",
@@ -370,5 +375,7 @@ export function buildPlan(input: EngineInput): PlanOutput {
     schedule: buildSchedule(input, fill),
     tasks: buildTasks(input, fill),
     assumptions: assumptions.slice(0, 20),
+    // Template plans don't read the free-text details, so they never report conflicts.
+    conflicts: [],
   };
 }

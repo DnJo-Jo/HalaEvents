@@ -76,6 +76,8 @@ export const PlanOverview = z.object({
       }),
     )
     .max(20),
+  /** Where the organizer's additional details contradict the structured facts (custom drafts). */
+  conflicts: z.array(Line).max(5).default([]),
   /** Event-day timetable in the event's timezone. */
   schedule: z
     .array(
@@ -122,3 +124,86 @@ export const AiRunStatus = z.enum([
   "timeout",
   "model_unavailable",
 ]);
+export type AiRunStatus = z.infer<typeof AiRunStatus>;
+
+/**
+ * What the drafting model returns (event.md §17.7): a compact plan without budget amounts or a
+ * timetable, which deterministic code adds. `agent.ts` turns it into a PlanOutput, then the same
+ * validatePlan/resolvePlan checks as for template plans apply.
+ */
+export const AiPlanDraft = z.object({
+  summary: z.string().min(10).max(400),
+  goals: z.array(Line).max(5),
+  tasks: z
+    .array(
+      z.object({
+        id: TempId,
+        title: z.string().min(3).max(120),
+        description: z.string().min(3).max(200),
+        category: TaskCategory,
+        priority: TaskPriority,
+        /** Days relative to the event's first ("start") or last ("end") day; negative = before. */
+        anchor: z.enum(["start", "end"]),
+        offsetDays: z.number().int().min(-365).max(60),
+        owner: z.string().min(2).max(60),
+        dependsOn: z.array(TempId).max(6),
+        evidence: z.array(z.string().min(3).max(80)).max(4),
+        confidence: z.enum(["high", "medium", "low"]),
+        nextAction: z.string().min(3).max(120),
+      }),
+    )
+    .min(3)
+    .max(20),
+  assumptions: z.array(Line).max(8),
+  risks: z
+    .array(
+      z.object({
+        title: z.string().min(3).max(100),
+        likelihood: z.enum(["high", "medium", "low"]),
+        mitigation: z.string().min(3).max(200),
+        contingency: z.string().max(200),
+      }),
+    )
+    .max(8),
+  decisions: z.array(Line).max(6),
+  followUpQuestions: z
+    .array(z.object({ question: z.string().min(3).max(200), why: z.string().max(300) }))
+    .max(5),
+  /** Contradictions between the additional details and the event facts/answers; empty if none. */
+  conflicts: z.array(Line).max(5),
+});
+export type AiPlanDraft = z.infer<typeof AiPlanDraft>;
+
+/**
+ * Full custom draft (AI_PLAN_STRATEGY=full, event.md §17.8): the model also writes the overview
+ * parts the hybrid draft takes from the playbook engine — requirements, missing information,
+ * budget lines (illustrative, in the event currency) and the event-day schedule. Code still
+ * validates everything (validatePlan + fullPlanErrors) before anything is stored.
+ */
+export const AiFullPlanDraft = AiPlanDraft.extend({
+  tasks: AiPlanDraft.shape.tasks.max(16),
+  requirements: z.array(Line).max(8),
+  missingInformation: z.array(Line).max(6),
+  budgetCategories: z
+    .array(
+      z.object({
+        name: z.string().min(2).max(60),
+        estimatedAmount: z.number().min(0).max(100_000_000),
+        note: z.string().max(160),
+      }),
+    )
+    .max(10),
+  budgetSummary: z.string().max(400),
+  schedule: z
+    .array(
+      z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        start: z.string().regex(/^\d{2}:\d{2}$/),
+        end: z.string().regex(/^\d{2}:\d{2}$/),
+        title: z.string().min(3).max(100),
+        note: z.string().max(120),
+      }),
+    )
+    .max(16),
+});
+export type AiFullPlanDraft = z.infer<typeof AiFullPlanDraft>;

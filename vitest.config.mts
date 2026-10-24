@@ -31,7 +31,8 @@ export default defineConfig({
           include: ["tests/db/**/*.test.ts"],
           // Each file runs its own in-process Postgres (PGlite, a few hundred MB). Unbounded
           // parallelism ran a 7.5 GB dev machine out of memory (worker SIGKILL) on 2026-10-22.
-          maxWorkers: 3,
+          // 2 since 2026-10-24: the dev machine now has 3.7 GB and 3 workers were SIGKILLed again.
+          maxWorkers: 2,
           sequence: { groupOrder: 1 },
           testTimeout: 30_000,
           hookTimeout: 60_000,

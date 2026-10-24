@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TestDb } from "./harness";
 
@@ -38,6 +40,55 @@ describe("profile creation", () => {
     const admins = await db.sql("select * from public.platform_admins where user_id = $1", [id]);
     expect(roles).toEqual([]);
     expect(admins).toEqual([]);
+  });
+});
+
+describe("profile backfill (20261024000001)", () => {
+  const backfill = readFileSync(
+    join(process.cwd(), "supabase/migrations/20261024000001_backfill_profiles.sql"),
+    "utf8",
+  );
+
+  it("creates missing profiles, leaves existing ones unchanged and is safe to rerun", async () => {
+    // Users who signed up before the schema existed: auth row, no profile.
+    const early = [
+      await db.createUser("early1@example.test"),
+      await db.createUser("early2@example.test", { confirmed: false }),
+    ];
+    await db.sql("delete from public.profiles where user_id = any($1)", [early]);
+    const allProfiles = () =>
+      db.sql<Record<string, unknown>>("select * from public.profiles order by user_id");
+    const before = await allProfiles();
+    const users = await db.sql<{ n: number }>("select count(*)::int as n from auth.users");
+
+    await db.pg.exec(backfill);
+    const after = await allProfiles();
+    expect(after).toHaveLength(users[0].n);
+    expect(after.filter((p) => !early.includes(p.user_id as string))).toEqual(before);
+    for (const id of early) {
+      expect(after.find((p) => p.user_id === id)).toMatchObject({
+        account_status: "active",
+        onboarded_at: null,
+        display_name: null,
+      });
+    }
+
+    await db.pg.exec(backfill);
+    expect(await allProfiles()).toEqual(after);
+  });
+
+  it("backfilled users can complete onboarding", async () => {
+    const late = await db.createUser("early3@example.test");
+    await db.sql("delete from public.profiles where user_id = $1", [late]);
+    await db.pg.exec(backfill);
+    await db
+      .user(late)
+      .query("select public.complete_onboarding('Early', null, 'en', $1)", [["organizer"]]);
+    const [p] = await db.sql<{ onboarded_at: string | null }>(
+      "select onboarded_at from public.profiles where user_id = $1",
+      [late],
+    );
+    expect(p.onboarded_at).not.toBeNull();
   });
 });
 

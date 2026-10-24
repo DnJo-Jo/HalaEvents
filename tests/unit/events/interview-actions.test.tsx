@@ -25,7 +25,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/app",
 }));
 
-const { saveInterviewAction } = await import("@/modules/events/actions");
+const { saveInterviewAction, saveEventDetailsAction } = await import("@/modules/events/actions");
 
 const EVENT = "11111111-1111-4111-8111-111111111111";
 const future = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
@@ -215,5 +215,77 @@ describe("interview page", () => {
   it("non-members get a 404", async () => {
     setup(null);
     await expect(render()).rejects.toMatchObject({ notFound: true });
+  });
+});
+
+describe("additional event details", () => {
+  const render = async () => {
+    const { default: Page } = await import("@/app/app/events/[eventId]/interview/page");
+    return renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: EVENT }) }));
+  };
+  const details = () =>
+    state.rpcCalls.filter((c) => c.fn === "save_event_details").map((c) => c.args);
+  const send = (text: string) => saveEventDetailsAction(EVENT, {}, form({ details: text }));
+
+  it("owners and organizers save it (trimmed); empty text clears it", async () => {
+    for (const role of ["owner", "organizer"] as const) {
+      state = createFakeState({ sub: "user-1" });
+      setup(role);
+      expect(await send("  Shuttle from the main gate every 30 minutes.\r\n")).toMatchObject({
+        ok: true,
+        message: expect.stringMatching(/Regenerate the plan/),
+      });
+      expect(details()).toEqual([
+        { p_event_id: EVENT, p_details: "Shuttle from the main gate every 30 minutes." },
+      ]);
+    }
+    expect(await send("   ")).toMatchObject({ ok: true, message: "Additional details removed." });
+    expect(details().at(-1)).toEqual({ p_event_id: EVENT, p_details: "" });
+  });
+
+  it("viewers, outsiders and locked events can't change it; too long is a field error", async () => {
+    for (const [role, status, message] of [
+      ["viewer", "planning", /owner or organizers/],
+      [null, "planning", /doesn't exist/],
+      ["owner", "live", /details can't be changed/],
+    ] as const) {
+      state = createFakeState({ sub: "user-1" });
+      setup(role, status);
+      expect(await send("x")).toMatchObject({ ok: false, message: expect.stringMatching(message) });
+    }
+    state = createFakeState({ sub: "user-1" });
+    setup("owner");
+    expect(await send("x".repeat(3001))).toMatchObject({
+      ok: false,
+      fieldErrors: { details: [expect.stringMatching(/3000/)] },
+    });
+    expect(details()).toEqual([]);
+    expect(await saveEventDetailsAction("nope", {}, form({ details: "x" }))).toMatchObject({
+      ok: false,
+    });
+  });
+
+  it("the interview page shows an optional, editable section with examples; viewers read it", async () => {
+    setup("owner");
+    (state.tables.events[0] as Record<string, unknown>).additional_details = "Prayer room needed.";
+    const out = await render();
+    expect(out).toContain("Additional event details");
+    expect(out).toContain("Optional.");
+    expect(out).toContain('name="details"');
+    expect(out).toContain("Prayer room needed.");
+    for (const s of [
+      "Venue:",
+      "Catering:",
+      "Transport:",
+      "Accessibility:",
+      "Equipment:",
+      "Special arrangements:",
+    ])
+      expect(out).toContain(s);
+    setup("viewer");
+    (state.tables.events[0] as Record<string, unknown>).additional_details = "Prayer room needed.";
+    const ro = await render();
+    expect(ro).toContain("Prayer room needed.");
+    expect(ro).not.toContain('name="details"');
   });
 });

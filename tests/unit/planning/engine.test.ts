@@ -352,12 +352,20 @@ describe("no external AI provider", () => {
       e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)],
     );
 
-  it("the source tree has no AI provider code, hosts, SDKs or AI environment variables", () => {
+  it("AI provider code lives only in the gateway (src/lib/ai) and the env schema; no SDKs", () => {
     const files = walk(join(root, "src")).filter((f) => /\.(ts|tsx|mts)$/.test(f));
+    const rel = (f: string) => f.slice(root.length + 1);
+    const allowed = (f: string) =>
+      rel(f).startsWith("src/lib/ai/") || rel(f) === "src/lib/env.server.ts";
+    const providerCode =
+      /api\.cloudflare\.com|CLOUDFLARE_|AI_PROVIDER|AI_PLAN_MODEL|createCloudflareProvider/;
+    expect(
+      files.filter((f) => !allowed(f) && providerCode.test(readFileSync(f, "utf8"))).map(rel),
+    ).toEqual([]);
+    // Removed providers and every AI SDK stay out of the whole tree.
     const banned =
-      /generativelanguage\.googleapis|api\.groq\.com|api\.x\.ai|api\.anthropic\.com|openrouter\.ai|api\.openai\.com|GEMINI_|GROQ_|XAI_|AI_PROVIDER|@google\/genai|@anthropic-ai|openai/i;
-    const hits = files.filter((f) => banned.test(readFileSync(f, "utf8")));
-    expect(hits.map((f) => f.slice(root.length + 1))).toEqual([]);
+      /generativelanguage\.googleapis|api\.groq\.com|api\.x\.ai|api\.anthropic\.com|openrouter\.ai|api\.openai\.com|GEMINI_|GROQ_|XAI_|@google\/genai|@anthropic-ai|openai/i;
+    expect(files.filter((f) => banned.test(readFileSync(f, "utf8"))).map(rel)).toEqual([]);
   });
 
   it("no page or component shows provider names, debug output or unfinished-section copy", () => {
@@ -373,8 +381,6 @@ describe("no external AI provider", () => {
   it("package.json has no AI SDK dependency and .env.example no AI variables", () => {
     const pkg = readFileSync(join(root, "package.json"), "utf8");
     expect(pkg).not.toMatch(/genai|anthropic|openai|groq|generative-ai/i);
-    expect(readFileSync(join(root, ".env.example"), "utf8")).not.toMatch(
-      /GEMINI|GROQ|XAI_|AI_PROVIDER/,
-    );
+    expect(readFileSync(join(root, ".env.example"), "utf8")).not.toMatch(/GEMINI|GROQ|XAI_/);
   });
 });

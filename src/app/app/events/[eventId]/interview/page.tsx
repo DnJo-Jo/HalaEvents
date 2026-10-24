@@ -12,11 +12,23 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { dismissSuggestionAction } from "@/modules/planning/actions";
-import { saveInterviewAction } from "@/modules/events/actions";
+import { Textarea } from "@/components/ui/input";
+import { saveEventDetailsAction, saveInterviewAction } from "@/modules/events/actions";
+import { EVENT_DETAILS_MAX } from "@/modules/events/schemas";
 import { formatAnswer } from "@/modules/events/interview-rules";
 import { getInterview } from "@/modules/events/service";
 
 export const metadata: Metadata = { title: "Planning interview" };
+
+const DETAILS_PLACEHOLDER = [
+  "For example:",
+  "- Venue: prefer a ground-floor hall near the metro; no outdoor areas in summer.",
+  "- Catering: vegetarian and vegan options; two guests have nut allergies.",
+  "- Transport: shuttle from the main campus gate every 30 minutes.",
+  "- Accessibility: step-free access and two wheelchair spaces near the stage.",
+  "- Equipment: two projectors, wireless microphones, power at every table.",
+  "- Special arrangements: prayer room, quiet room, parking for 20 cars.",
+].join("\n");
 
 export default async function InterviewPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params;
@@ -150,6 +162,50 @@ export default async function InterviewPage({ params }: { params: Promise<{ even
             {null}
           </ActionForm>
         ))}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Additional event details</CardTitle>
+          <CardDescription>
+            Optional. Anything the questions above didn&rsquo;t cover: requirements, preferences,
+            special circumstances or constraints. Custom plan drafts take it into account; your
+            answers above still count as the event&rsquo;s facts, and a draft points out anything
+            here that disagrees with them.
+          </CardDescription>
+        </CardHeader>
+        <CardBody>
+          {canEdit ? (
+            <ActionForm
+              action={saveEventDetailsAction.bind(null, event.id)}
+              labels={{ details: "Additional event details" }}
+              aria-label="Additional event details"
+              className="space-y-3"
+            >
+              <label htmlFor="event-details" className="sr-only">
+                Additional event details
+              </label>
+              <Textarea
+                id="event-details"
+                name="details"
+                rows={7}
+                maxLength={EVENT_DETAILS_MAX}
+                defaultValue={event.additional_details ?? ""}
+                placeholder={DETAILS_PLACEHOLDER}
+              />
+              <p className="text-xs text-ink-muted">
+                Up to {EVENT_DETAILS_MAX.toLocaleString("en-US")} characters. Leave it empty if
+                there&rsquo;s nothing to add. Don&rsquo;t include passwords or other people&rsquo;s
+                private details.
+              </p>
+              <SubmitButton variant="secondary">Save details</SubmitButton>
+            </ActionForm>
+          ) : event.additional_details ? (
+            <p className="text-sm whitespace-pre-line">{event.additional_details}</p>
+          ) : (
+            <p className="text-sm text-ink-muted">No additional details.</p>
+          )}
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHeader>

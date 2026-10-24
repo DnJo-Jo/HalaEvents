@@ -9,7 +9,7 @@ The first supported event type is the university hackathon (Dubai/UAE context fi
 ## Principles
 
 - **The organizer stays in control.** HalaEvents recommends and prepares; it never sends, books, pays or files on its own. Consequential actions go through an approval gate and are written to an audit log.
-- **No external AI.** Plans, message drafts and recovery proposals come from a deterministic playbook engine (`src/modules/planning/engine.ts`) using the playbooks in `/playbooks`. Generated plans are suggestions until they pass the rule checks and the organizer accepts them.
+- **AI through one gateway, optional.** Plans can be a *template plan* from the deterministic playbook engine (`src/modules/planning/engine.ts`, playbooks in `/playbooks`) or a *custom draft* written through the AI gateway (`src/lib/ai/`, Cloudflare Workers AI first). Custom drafts are validated by the same rules, budget and dates stay in code, and nothing becomes a task until the organizer accepts it.
 - **Server-side authorization plus row-level security** on every protected operation. Capacity and booking consistency are enforced in PostgreSQL.
 
 ## Tech stack
@@ -42,6 +42,8 @@ See `.env.example` for the full list. The essentials:
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public (publishable) key; RLS protects the data     |
 | `EMAIL_PROVIDER`                       | `mock` (default) or `resend`                         |
 | `WEATHER_PROVIDER`, `PLACES_PROVIDER`  | `mock` by default                                    |
+| `AI_PROVIDER`                          | `none` (default) or `cloudflare` for custom drafts   |
+| `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `AI_PLAN_MODEL` | Server-only; required when `AI_PROVIDER=cloudflare` |
 
 Never commit `.env.local` or any real keys. Only `NEXT_PUBLIC_*` variables may be read in client code.
 

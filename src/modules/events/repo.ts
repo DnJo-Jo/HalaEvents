@@ -22,6 +22,11 @@ export const EventRow = z.object({
   capacity: z.number(),
   budget_amount: z.union([z.null(), z.coerce.number()]),
   currency: z.string(),
+  /** Organizer's optional free-text details (migration 20261024000004). */
+  additional_details: z
+    .string()
+    .nullish()
+    .transform((v) => v ?? null),
 });
 export type EventRow = z.infer<typeof EventRow>;
 const COLUMNS = Object.keys(EventRow.shape).join(", ");
@@ -166,4 +171,13 @@ export async function listTimeline(
   const { data, error } = await db.rpc("event_timeline", { p_event_id: eventId, p_limit: limit });
   if (error) throw fromDbError(error);
   return z.array(TimelineEntry).parse(data ?? []);
+}
+
+export async function saveEventDetails(
+  db: SupabaseServerClient,
+  eventId: string,
+  details: string,
+): Promise<void> {
+  const { error } = await db.rpc("save_event_details", { p_event_id: eventId, p_details: details });
+  if (error) throw fromDbError(error);
 }

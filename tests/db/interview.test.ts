@@ -211,3 +211,91 @@ describe("event state", () => {
     expect(await stored(id)).toEqual({});
   });
 });
+
+describe("additional event details (20261024000004)", () => {
+  const SAVE_DETAILS = "select public.save_event_details($1, $2)";
+  const details = async (id: string) =>
+    (
+      await db.sql<{ d: string | null }>(
+        "select additional_details as d from public.events where id = $1",
+        [id],
+      )
+    )[0].d;
+
+  it("is optional: existing and new events have none", async () => {
+    const id = await createEvent(owner);
+    expect(await details(id)).toBeNull();
+  });
+
+  it("owners and organizers save and edit it; text is trimmed, empty clears it", async () => {
+    const id = await createEvent(owner);
+    await db
+      .user(owner)
+      .query(
+        "insert into public.event_members (event_id, user_id, role) values ($1, $2, 'organizer')",
+        [id, organizer],
+      );
+    await db.user(owner).query(SAVE_DETAILS, [id, "  Prefer a ground-floor hall.\n  "]);
+    expect(await details(id)).toBe("Prefer a ground-floor hall.");
+    await db.user(organizer).query(SAVE_DETAILS, [id, "Two guests have nut allergies."]);
+    expect(await details(id)).toBe("Two guests have nut allergies.");
+    await db.user(owner).query(SAVE_DETAILS, [id, "   "]);
+    expect(await details(id)).toBeNull();
+  });
+
+  it("viewers, outsiders and anon can't write it; members can read it", async () => {
+    await db.user(owner).query(SAVE_DETAILS, [eventId, "Shuttle from the main gate."]);
+    for (const who of [viewer, outsider])
+      expect(await db.user(who).error(SAVE_DETAILS, [eventId, "x"])).toMatch(/forbidden/);
+    expect(await db.anon.error(SAVE_DETAILS, [eventId, "x"])).toMatch(/permission denied/);
+    // No direct column write either (no update grant on the column).
+    expect(
+      await db
+        .user(owner)
+        .error("update public.events set additional_details = 'y' where id = $1", [eventId]),
+    ).toMatch(/permission denied/);
+    const [row] = await db
+      .user(viewer)
+      .query<{ additional_details: string }>(
+        "select additional_details from public.events where id = $1",
+        [eventId],
+      );
+    expect(row.additional_details).toBe("Shuttle from the main gate.");
+    expect(
+      await db
+        .user(outsider)
+        .query("select additional_details from public.events where id = $1", [eventId]),
+    ).toEqual([]);
+  });
+
+  it("enforces the length limit and locks with the interview", async () => {
+    const id = await createEvent(owner);
+    expect(await db.user(owner).error(SAVE_DETAILS, [id, "x".repeat(3001)])).toMatch(
+      /additional_details/,
+    );
+    await db.user(owner).query(SAVE_DETAILS, [id, "x".repeat(3000)]);
+    for (const status of ["planning", "ready", "live"] as const)
+      await db
+        .user(owner)
+        .query("update public.events set status = $2 where id = $1", [id, status]);
+    expect(await db.user(owner).error(SAVE_DETAILS, [id, "later"])).toMatch(
+      /interview_locked: live/,
+    );
+  });
+
+  it("isn't exposed by the public registration page RPC, and leaves interview answers alone", async () => {
+    const id = await createEvent(owner);
+    await save(owner, { "audience.level": "mixed" }, [], id);
+    await db.user(owner).query(SAVE_DETAILS, [id, "Private organizer note"]);
+    expect(await stored(id)).toEqual({ "audience.level": "mixed" });
+    await db.sql(
+      "update public.events set published_slug = 'details-test', registration_open = true, status = 'planning' where id = $1",
+      [id],
+    );
+    const rows = await db.anon.query<Record<string, unknown>>(
+      "select * from public.public_event_by_slug('details-test')",
+    );
+    expect(rows).toHaveLength(1);
+    expect(JSON.stringify(rows)).not.toContain("Private organizer note");
+  });
+});

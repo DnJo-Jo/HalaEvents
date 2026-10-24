@@ -33,8 +33,26 @@ describe("static security checks (regression guards, not a security guarantee)",
       .map((f) => f.p);
     expect(bad).toEqual([]);
   });
+  it("the AI gateway is server-only (provider code and credentials never reach client bundles)", () => {
+    const gateway = files.filter(
+      (f) => f.p.startsWith("src/lib/ai/") && !f.p.endsWith("/types.ts"),
+    );
+    expect(gateway.length).toBeGreaterThan(0);
+    expect(gateway.filter((f) => !f.s.includes('import "server-only"')).map((f) => f.p)).toEqual(
+      [],
+    );
+    const clients = files.filter((f) => /^\s*["']use client["']/.test(f.s));
+    expect(
+      clients.filter((f) => /@\/lib\/ai\/|CLOUDFLARE_|AI_PLAN_/.test(f.s)).map((f) => f.p),
+    ).toEqual([]);
+  });
   it("secrets are read only in server-only modules, never via NEXT_PUBLIC_", () => {
-    const secretNames = ["SUPABASE_SECRET_KEY", "RESEND_API_KEY", "GOOGLE_PLACES_API_KEY"];
+    const secretNames = [
+      "SUPABASE_SECRET_KEY",
+      "RESEND_API_KEY",
+      "GOOGLE_PLACES_API_KEY",
+      "CLOUDFLARE_API_TOKEN",
+    ];
     const leaks = files.filter(
       (f) =>
         secretNames.some((n) => f.s.includes(n)) &&
@@ -67,7 +85,7 @@ describe("static security checks (regression guards, not a security guarantee)",
         ),
       )
       .map((f) => f.p)
-      .filter((p) => !p.startsWith("src/lib/integrations/"));
+      .filter((p) => !p.startsWith("src/lib/integrations/") && !p.startsWith("src/lib/ai/"));
     expect(hosts).toEqual([]);
   });
   it("security headers are configured", () => {

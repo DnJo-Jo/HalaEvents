@@ -41,7 +41,8 @@ const formatDate = (d: string) =>
 export default async function PlanPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params;
   if (!z.uuid().safeParse(eventId).success) notFound();
-  const { event, canEdit, missing, current, evidence } = await getPlanView(eventId);
+  const { event, canEdit, customAvailable, customStrategy, missing, current, stale, evidence } =
+    await getPlanView(eventId);
   const titles = new Map(current?.tasks.map((t) => [t.task.tempId, t.task.title]) ?? []);
 
   return (
@@ -53,7 +54,11 @@ export default async function PlanPage({ params }: { params: Promise<{ eventId: 
       </nav>
       <PageHeader
         title="Plan"
-        description="A draft plan built from the playbook for your event type and your interview answers: tasks, budget, schedule and risks."
+        description={
+          customAvailable
+            ? "A draft plan for your event type and interview answers: tasks, budget, schedule and risks. Choose a template draft from the playbook, or a custom draft tailored to your answers."
+            : "A draft plan built from the playbook for your event type and your interview answers: tasks, budget, schedule and risks."
+        }
       />
 
       <Alert title="This is a draft for you to review">
@@ -79,29 +84,59 @@ export default async function PlanPage({ params }: { params: Promise<{ eventId: 
         </Alert>
       )}
 
+      {stale && (
+        <Alert tone="warning" title="This plan is out of date">
+          The event details or interview answers changed after this plan was made, so some tasks,
+          deadlines and assumptions below may no longer fit.{" "}
+          {canEdit
+            ? "Regenerate the plan to bring it up to date."
+            : "The event's owner or organizers can regenerate it."}
+        </Alert>
+      )}
+
       {canEdit && (
-        <ActionForm
-          action={generatePlanAction.bind(null, event.id)}
-          aria-label="Generate plan"
-          className="space-y-3"
-        >
-          <div className="flex flex-wrap gap-2">
-            {current ? (
-              <SubmitButton name="intent" value="regenerate" variant="secondary">
-                Regenerate plan
+        <div className="flex flex-wrap items-start gap-6">
+          {customAvailable && (
+            <ActionForm
+              action={generatePlanAction.bind(null, event.id)}
+              aria-label="Custom draft"
+              className="max-w-sm space-y-2"
+            >
+              <input type="hidden" name="mode" value="custom" />
+              <SubmitButton name="intent" value={current ? "regenerate" : "generate"}>
+                {current ? "Regenerate custom draft" : "Generate custom draft"}
               </SubmitButton>
-            ) : (
-              <SubmitButton name="intent" value="generate">
-                Generate plan
-              </SubmitButton>
-            )}
-          </div>
-          <p className="text-xs text-ink-muted">
-            {current
-              ? "Regenerating rebuilds the draft from your latest answers and replaces all open proposals."
-              : "The draft is built from your event details and interview answers."}
-          </p>
-        </ActionForm>
+              <p className="text-xs text-ink-muted">
+                {customStrategy === "full"
+                  ? "The drafting assistant writes the whole plan for your event and answers, including budget estimates and the timetable; HalaEvents checks it before saving."
+                  : "Written for your answers by the drafting assistant, then checked by HalaEvents. Budget figures and the timetable are still calculated from the playbook."}
+              </p>
+            </ActionForm>
+          )}
+          <ActionForm
+            action={generatePlanAction.bind(null, event.id)}
+            aria-label="Template draft"
+            className="max-w-sm space-y-2"
+          >
+            <input type="hidden" name="mode" value="template" />
+            <SubmitButton
+              name="intent"
+              value={current ? "regenerate" : "generate"}
+              variant={customAvailable || current ? "secondary" : "primary"}
+            >
+              {current ? "Regenerate template plan" : "Generate template plan"}
+            </SubmitButton>
+            <p className="text-xs text-ink-muted">
+              Built instantly from the playbook for your event type and your answers.
+            </p>
+          </ActionForm>
+          {current && (
+            <p className="basis-full text-xs text-ink-muted">
+              Regenerating rebuilds the draft from your latest answers and replaces all open
+              proposals.
+            </p>
+          )}
+        </div>
       )}
 
       {!current ? (
@@ -119,6 +154,9 @@ export default async function PlanPage({ params }: { params: Promise<{ eventId: 
             <h2 id="plan-heading" className="text-lg font-semibold">
               {current.tasks.length} suggested task{current.tasks.length === 1 ? "" : "s"}
             </h2>
+            <Badge tone={current.plan.source === "ai" ? "info" : "neutral"}>
+              {current.plan.source === "ai" ? "Custom draft" : "Template draft"}
+            </Badge>
           </div>
           {canEdit && current.tasks.length > 0 && (
             <ActionForm
@@ -132,6 +170,19 @@ export default async function PlanPage({ params }: { params: Promise<{ eventId: 
                 don&apos;t want first; you can edit tasks once they are in the workspace.
               </span>
             </ActionForm>
+          )}
+          {(current.plan.overview?.conflicts.length ?? 0) > 0 && (
+            <Alert tone="warning" title="Your additional details disagree with your answers">
+              <p>
+                The draft kept your interview answers and event details. Check these points and
+                update whichever is wrong, then regenerate:
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {current.plan.overview!.conflicts.map((c, i) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ul>
+            </Alert>
           )}
           {current.plan.overview && (
             <Overview overview={current.plan.overview} currency={event.currency} />

@@ -92,6 +92,18 @@ const KNOWN_RULES: Record<string, [AppErrorCode, string]> = {
   not_approved: ["invalid_transition", "This needs an approved approval first."],
   invalid_results: ["internal", "The delivery results didn't match the approved message."],
   run_not_usable: ["validation_failed", "That draft can't be used."],
+  interview_locked: [
+    "conflict",
+    "This event is no longer being planned, so its interview and details can't be changed.",
+  ],
+  ai_run_in_progress: [
+    "conflict",
+    "A draft for this event is already being prepared. Wait a moment, then reload the page.",
+  ],
+  ai_rate_limited: [
+    "rate_limited",
+    "Too many drafts were requested in the last hour. Please try again later.",
+  ],
   // Bookings (0011)
   quote_not_bookable: [
     "conflict",

@@ -1,5 +1,6 @@
 import "server-only";
 import { notFound } from "next/navigation";
+import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/db/server";
 import { AppError } from "@/lib/errors";
 import { requireMember } from "@/modules/profiles/service";
@@ -17,7 +18,13 @@ import {
 import { canTransition } from "./rules";
 import * as repo from "./repo";
 import type { EventRow } from "./repo";
-import { EventType, type EventFormInput, type EventMemberRole, type EventStatus } from "./schemas";
+import {
+  EventDetailsInput,
+  EventType,
+  type EventFormInput,
+  type EventMemberRole,
+  type EventStatus,
+} from "./schemas";
 
 export async function listMyEvents() {
   const { user } = await requireMember();
@@ -125,6 +132,35 @@ export async function saveInterview(
     ok: true,
     complete: interviewState(playbook, ctx, { ...kept, ...parsed.answers }).complete,
   };
+}
+
+/**
+ * Saves the optional "Additional event details" (owner/organizers, while the interview is open).
+ * The text is kept apart from structured answers and event facts; empty clears it.
+ */
+export async function saveEventDetails(
+  eventId: string,
+  raw: unknown,
+): Promise<{ ok: true; cleared: boolean } | { ok: false; fieldErrors: Record<string, string[]> }> {
+  const parsed = EventDetailsInput.safeParse(raw);
+  if (!parsed.success) return { ok: false, fieldErrors: z.flattenError(parsed.error).fieldErrors };
+  const { user } = await requireMember();
+  const db = await createSupabaseServerClient();
+  const [event, role] = await Promise.all([
+    repo.getEvent(db, eventId),
+    repo.getRole(db, eventId, user.id),
+  ]);
+  if (!event || !role)
+    throw new AppError("not_found", "That event doesn't exist or isn't visible to you.");
+  if (role !== "owner" && role !== "organizer")
+    throw new AppError("forbidden", "Only the event's owner or organizers can edit these details.");
+  if (!interviewEditable(event.status))
+    throw new AppError(
+      "conflict",
+      `This event is ${event.status}, so its details can't be changed.`,
+    );
+  await repo.saveEventDetails(db, eventId, parsed.data.details);
+  return { ok: true, cleared: parsed.data.details === "" };
 }
 
 /** The playbook, interview state and answer context of an event (for plan, compliance, reminders). */

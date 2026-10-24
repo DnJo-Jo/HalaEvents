@@ -78,3 +78,12 @@ export function eventFormInput(timeZone: string) {
 export type EventFormInput = z.infer<ReturnType<typeof eventFormInput>>;
 
 export const ChangeEventStatusInput = z.object({ status: EventStatus });
+
+/** "Additional event details": optional free text; empty means none (event.md §16.4). */
+export const EVENT_DETAILS_MAX = 3000;
+export const EventDetailsInput = z.object({
+  details: z
+    .string()
+    .max(EVENT_DETAILS_MAX, `Keep it under ${EVENT_DETAILS_MAX} characters.`)
+    .transform((s) => s.replace(/\r\n/g, "\n").trim()),
+});

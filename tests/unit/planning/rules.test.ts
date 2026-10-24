@@ -158,6 +158,7 @@ describe("validatePlan", () => {
     budgetSummary: "",
     risks: [],
     schedule: [],
+    conflicts: [],
   };
   const plan = (tasks: TaskProposal[], assumptions: string[] = []) => ({
     ...overview,

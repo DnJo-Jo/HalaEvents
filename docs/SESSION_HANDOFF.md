@@ -1,5 +1,35 @@
 # Session Handoff
 
+## Last session: 2026-10-24 — additional event details
+- Built (event.md §16.4); migration `20261024000004` pushed and verified on hosted; checked in a headless browser. Next: a live custom draft with details filled in (check the conflicts warning), then vendor discovery.
+
+## Earlier 2026-10-24 — full-AI custom drafts (AI_PLAN_STRATEGY=full)
+- Model writes the whole custom draft from event facts + answers (event.md §17.8). Switch back: `AI_PLAN_STRATEGY=hybrid` in .env.local. Next: one live full draft on a realistic event (4–8 weeks out, interview answered); paste the `plan_draft` log line.
+
+## Earlier 2026-10-24 — Phase 2 AI foundation (offline, nothing live)
+- Built: gateway `src/lib/ai/`, prompt `src/modules/planning/plan-prompt.ts`, merge `src/modules/planning/agent.ts`, custom mode in `planning/service.ts` + plan page; migrations `20261024000002` (assumptions cap) and `20261024000003` (cloudflare provider, prompt_version) — **tested on PGlite only, not pushed**. Details: event.md §17.7, PROGRESS.md "Phase 2".
+- Checks: lint, typecheck, format, `npm test` 752 ✅ (one earlier run OOM-killed a PGlite worker; machine has 3.7 GB), build ✅.
+- **Exact next action (needs user approval):** (1) `npx supabase db push --dry-run` → expect 2 new migrations → push; (2) user adds Cloudflare id/token/model to `.env.local`; (3) one controlled live draft (procedure in the final report of this session).
+- Not done: email/spreadsheet/vendor agents, BYOK, commit.
+- Pre-deployment pass done; both migrations pushed and verified on hosted (2026-10-24). Next: Cloudflare credentials in .env.local, then one controlled live draft.
+
+
+## Last session: 2026-10-24 — hosted walkthrough (main organizer path) passed
+- Headless Chromium (scratchpad playwright-core + user-space libs, `LD_LIBRARY_PATH` from scratchpad `ldpath.txt`) against `npm run dev` + hosted Supabase: sign-up, onboarding, event, interview, plan generate/reload/dismiss/accept, tasks, stale banner, not-found pages all worked; DB rows confirmed read-only. No code changes needed. Test account `halaevents.walkthrough.*@example.test` + event "Walkthrough Campus Hack" now exist on the hosted project (delete later if unwanted).
+- **Exact next action:** write unit tests for the plan-staleness warning (`tests/unit/planning/service.test.tsx`), then commit (when asked). Then the user's Cloudflare phase. Still open: first platform admin, dashboard auth settings, `db:types` → linked, revoke unused AI-era RPCs, walkthrough of messages/approvals/marketplace/bookings.
+
+## Earlier 2026-10-24 — hosted Supabase deployed and verified
+- `npx supabase db push` (approved, no seed) applied all 18 migrations; verified read-only: 18/18 in history, 43 tables / 141 functions match the repo, RLS everywhere, trigger present, 2 users → 2 profiles, anon locked down (details in PROGRESS.md "Hosted Supabase Cloud").
+- **Exact next action:** browser walkthrough against hosted Supabase (`npm run dev`, sign in with an existing account → onboarding → create event → interview → plan). Still not done (need user decisions): first platform admin (event.md §14.7), dashboard Site URL/redirects/email confirmation/leaked-password protection, `db:types` → linked project, revoke unused AI-era RPCs (new migration), tests for the uncommitted plan-staleness warning.
+
+## Earlier 2026-10-24 — hosted Supabase readiness (nothing pushed)
+- Decision: hosted Supabase Cloud, no Docker. CLI is logged in and linked (by the user). Hosted `public` schema is empty; 2 auth users exist without profiles.
+- Added `supabase/migrations/20261024000001_backfill_profiles.sql` + tests in `tests/db/accounts.test.ts`. `npm run test:db` 288 ✅, lint/typecheck/format ✅.
+- `npx supabase db push --dry-run` → 18 migrations (20261021000001 … 20261024000001), no seeds.
+- **Exact next action (needs user approval):** `npx supabase db push` (without `--include-seed` unless demo providers are wanted). Then verify read-only: `npx supabase migration list --linked` (18 applied), `supabase db query --linked` counts (≈42 tables, 2 profiles, trigger `on_auth_user_created`), anon probes (tables → permission denied, only `register_attendee`/`public_event_by_slug` executable), `npx supabase db advisors --linked`.
+- Then: grant the first platform admin manually (event.md §14.7); dashboard: Site URL + redirect `…/auth/confirm`, decide email confirmation; point `db:types` at the linked project and regenerate `src/lib/db/types.gen.ts`; update README/CLAUDE.md for the cloud workflow.
+- Uncommitted and kept: plan-staleness warning (`src/modules/planning/service.ts`, `src/app/app/events/[eventId]/plan/page.tsx`); write its tests in `tests/unit/planning/service.test.tsx`.
+
 ## Last session: 2026-10-23 — plan gate removed; Groq key/model still missing
 - Local migrations: all 15 applied (incl. `20261023000001`), checked with `node_modules/.bin/supabase migration list --local` (the CLI is not on PATH; use `npx supabase`).
 - Root cause of "plan won't generate": `generatePlan` refused to call the model unless the playbook's `requiredForPlan` answers existed, and the plan page hid the Generate button. Both gates removed; missing answers now go to the model as known gaps (assumptions / missingInformation). Prompt now separates confirmed facts, assumptions and estimates.
