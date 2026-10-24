@@ -78,7 +78,7 @@ export default async function PlanPage({ params }: { params: Promise<{ eventId: 
           <p className="mt-2">
             You can generate a draft now: it states an assumption for each missing detail.{" "}
             <Link href={`/app/events/${event.id}/interview`} className="text-primary underline">
-              Answer them in the planning interview
+              Answer them in Talk to Hala
             </Link>
           </p>
         </Alert>
@@ -144,7 +144,7 @@ export default async function PlanPage({ params }: { params: Promise<{ eventId: 
           title="No plan yet"
           description={
             canEdit
-              ? "Answer the planning interview if you haven't, then generate your draft plan."
+              ? "Talk to Hala if you haven't, then generate your draft plan."
               : "The event's owner or organizers haven't generated a plan yet."
           }
         />
@@ -193,7 +193,7 @@ export default async function PlanPage({ params }: { params: Promise<{ eventId: 
                 <CardTitle>Assumptions</CardTitle>
                 <CardDescription>
                   The plan assumes the following where details are missing. Answer the matching
-                  question in the planning interview and regenerate to replace an assumption.
+                  question in Talk to Hala and regenerate to replace an assumption.
                 </CardDescription>
               </CardHeader>
               <CardBody>
@@ -301,7 +301,7 @@ export default async function PlanPage({ params }: { params: Promise<{ eventId: 
 
       <p className="text-sm">
         <ButtonLink href={`/app/events/${event.id}/interview`} variant="ghost" size="sm">
-          Back to the planning interview
+          Back to Talk to Hala
         </ButtonLink>
       </p>
     </div>
@@ -334,7 +334,7 @@ function Overview({
           <CardHeader>
             <CardTitle>Open decisions and questions</CardTitle>
             <CardDescription>
-              These would change the plan the most. Answers go in the planning interview.
+              These would change the plan the most. Answers go in Talk to Hala.
             </CardDescription>
           </CardHeader>
           <CardBody className="space-y-4 text-sm">

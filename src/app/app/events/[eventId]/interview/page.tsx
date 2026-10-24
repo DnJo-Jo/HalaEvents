@@ -18,7 +18,7 @@ import { EVENT_DETAILS_MAX } from "@/modules/events/schemas";
 import { formatAnswer } from "@/modules/events/interview-rules";
 import { getInterview } from "@/modules/events/service";
 
-export const metadata: Metadata = { title: "Planning interview" };
+export const metadata: Metadata = { title: "Talk to Hala" };
 
 const DETAILS_PLACEHOLDER = [
   "For example:",
@@ -54,7 +54,7 @@ export default async function InterviewPage({ params }: { params: Promise<{ even
         </Link>
       </nav>
       <PageHeader
-        title="Planning interview"
+        title="Talk to Hala"
         description="Your answers decide which tasks and checks the plan will suggest. You can change them while the event is being planned."
         badge={
           <Badge>
@@ -81,7 +81,7 @@ export default async function InterviewPage({ params }: { params: Promise<{ even
         <ActionForm
           action={saveInterviewAction.bind(null, event.id)}
           labels={labels}
-          aria-label="Planning interview"
+          aria-label="Talk to Hala"
           className="space-y-6"
         >
           {state.next.length > 0 ? (

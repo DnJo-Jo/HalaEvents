@@ -27,6 +27,11 @@ export const EventRow = z.object({
     .string()
     .nullish()
     .transform((v) => v ?? null),
+  /** Services the organizer needs: venue / catering / transport (migration 20261024000005). */
+  services: z
+    .array(z.enum(["venue", "catering", "transport"]))
+    .nullish()
+    .transform((v) => v ?? []),
 });
 export type EventRow = z.infer<typeof EventRow>;
 const COLUMNS = Object.keys(EventRow.shape).join(", ");

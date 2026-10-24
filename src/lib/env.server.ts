@@ -43,6 +43,8 @@ export const ServerEnvSchema = z
     WEATHER_PROVIDER: mode(["mock", "open-meteo"] as const, "mock"),
     PLACES_PROVIDER: mode(["mock", "none", "google"] as const, "mock"),
     GOOGLE_PLACES_API_KEY: optional,
+    // Vendor discovery (geocoding + places). Unset = the vendor search reports it isn't available.
+    GEOAPIFY_API_KEY: optional,
     // Generated planning drafts (event.md §17.7). "none" = only template drafts are offered.
     // Names of removed providers (gemini, groq, xai, mock) in an old .env.local mean "none".
     AI_PROVIDER: z.preprocess(

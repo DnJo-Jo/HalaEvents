@@ -5,8 +5,8 @@ import { z } from "zod";
 import { EventStatusBadge, RequestStatusBadge } from "@/components/marketplace/status-badges";
 import { ActionForm } from "@/components/ui/action-form";
 import { Badge, DemoBadge } from "@/components/ui/badge";
-import { ButtonLink } from "@/components/ui/button";
-import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button, ButtonLink, buttonClasses } from "@/components/ui/button";
+import { Card, CardBody, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -19,6 +19,7 @@ import { changeEventStatusAction } from "@/modules/events/actions";
 import { EVENT_TRANSITIONS } from "@/modules/events/rules";
 import { describeTimelineEntry } from "@/modules/events/timeline";
 import { refreshRemindersAction } from "@/modules/notifications/actions";
+import { exportAvailability } from "@/modules/export/service";
 import { getTaskBoard } from "@/modules/tasks/service";
 import { listRequestsForEvent } from "@/modules/bookings/service";
 import { getEventForMember, getTimeline } from "@/modules/events/service";
@@ -32,12 +33,13 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
   const { eventId } = await params;
   if (!z.uuid().safeParse(eventId).success) notFound();
   const { event: e, role, canManage } = await getEventForMember(eventId);
-  const [shortlist, requests, board, compliance, timeline] = await Promise.all([
+  const [shortlist, requests, board, compliance, timeline, canExport] = await Promise.all([
     listShortlist(eventId),
     canManage ? listRequestsForEvent(eventId) : [],
     getTaskBoard(eventId),
     getComplianceOverview(eventId),
     getTimeline(eventId, 15),
+    canManage ? exportAvailability(eventId) : false,
   ]);
   const p = board.progress;
   const openChecks = compliance.checks.filter(
@@ -95,12 +97,6 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
                 </ButtonLink>
               </>
             )}
-            <ButtonLink href={`/app/events/${e.id}/interview`} variant="secondary">
-              Planning interview
-            </ButtonLink>
-            <ButtonLink href={`/app/events/${e.id}/plan`} variant="secondary">
-              Plan
-            </ButtonLink>
             {canManage && (
               <ButtonLink href={`/app/requests/new?event=${e.id}`} variant="secondary">
                 New service request
@@ -109,6 +105,109 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
           </>
         }
       />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Plan your event</CardTitle>
+          <CardDescription>Work through these in order, or jump to any step.</CardDescription>
+        </CardHeader>
+        <CardBody>
+          <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                href: "services",
+                title: "Choose services",
+                text: e.services.length
+                  ? e.services
+                      .map((s) =>
+                        s === "transport" ? "Transportation" : s[0].toUpperCase() + s.slice(1),
+                      )
+                      .join(", ")
+                  : "Venue, catering, transportation",
+                show: true,
+              },
+              {
+                href: "interview",
+                title: "Talk to Hala",
+                text: "Answer a few questions and add details",
+                show: true,
+              },
+              {
+                href: "vendors",
+                title: "Find vendors",
+                text: "Search real venues, caterers and transport",
+                show: canManage,
+              },
+              {
+                href: "plan",
+                title: "Generate plan",
+                text: "Review a draft plan and accept tasks",
+                show: true,
+              },
+            ]
+              .filter((x) => x.show)
+              .map((x, i) => (
+                <li key={x.href}>
+                  <Link
+                    href={`/app/events/${e.id}/${x.href}`}
+                    className="block h-full rounded-md border border-line p-3 hover:border-primary"
+                  >
+                    <span className="text-xs text-ink-muted">Step {i + 1}</span>
+                    <span className="block font-medium">{x.title}</span>
+                    <span className="block text-sm text-ink-muted">{x.text}</span>
+                  </Link>
+                </li>
+              ))}
+          </ol>
+        </CardBody>
+      </Card>
+
+      {canExport && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Event Actions</CardTitle>
+            <CardDescription>
+              Take your reviewed plan out of HalaEvents. Nothing is sent to anyone.
+            </CardDescription>
+          </CardHeader>
+          <CardBody className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2 rounded-md border border-line p-3">
+              <p className="font-medium">Export to Google Sheets</p>
+              <p className="text-sm text-ink-muted">
+                Download a workbook with the overview, tasks, budget, schedule and vendor shortlist.
+                To use it in Google Sheets, open a new sheet and choose File → Import → Upload. It
+                isn&apos;t uploaded for you.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={`/api/events/${e.id}/export`}
+                  download
+                  className={buttonClasses("primary", "sm")}
+                >
+                  Download .xlsx
+                </a>
+                <a
+                  href="https://sheets.new"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={buttonClasses("secondary", "sm")}
+                >
+                  Open Google Sheets
+                </a>
+              </div>
+            </div>
+            <div className="space-y-2 rounded-md border border-line p-3">
+              <p className="font-medium">Draft Email in Gmail</p>
+              <p className="text-sm text-ink-muted">
+                Draft messages to your shortlisted vendors for your approval.
+              </p>
+              <Button size="sm" variant="secondary" disabled>
+                Coming next
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+      )}
 
       <Card>
         <CardBody>
@@ -184,7 +283,7 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
           <Alert tone="info" title="No tasks yet">
             Answer the{" "}
             <Link href={`/app/events/${e.id}/interview`} className="underline">
-              planning interview
+              Talk to Hala
             </Link>
             , generate a{" "}
             <Link href={`/app/events/${e.id}/plan`} className="underline">

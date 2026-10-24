@@ -259,7 +259,7 @@ export function detectComplianceItems(playbook: Playbook, ctx: Context): Complia
         severity: "info",
         status: "needs_information",
         applicability: "unknown",
-        nextAction: "Answer the planning interview questions listed in the reason.",
+        nextAction: "Answer the questions listed in the reason in Talk to Hala.",
       });
       continue;
     }

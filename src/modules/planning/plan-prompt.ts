@@ -67,6 +67,8 @@ export interface PlanPromptInput {
   /** The engine's tasks for this event (playbook templates after conditions and adjustments). */
   baselineTasks: TaskProposal[]; /** Organizer's optional free text (events.additional_details). */
   details?: string | null;
+  /** Services the organizer selected (venue / catering / transport); empty = none selected. */
+  services?: string[];
 }
 
 const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
@@ -91,6 +93,7 @@ export function buildPlanPrompt(
     `budget: ${event.budget_amount === null ? "not set" : `${event.budget_amount} ${event.currency}`}`,
     event.city ? `city: ${clip(oneLine(event.city), 60)}` : null,
     event.venue_type ? `venue: ${event.venue_type}` : null,
+    input.services?.length ? `services needed from vendors: ${input.services.join(", ")}` : null,
   ].filter(Boolean);
   // The key names the topic, so the question text isn't repeated (saves ~45 characters a line).
   const answers = input.state.answered
@@ -172,6 +175,7 @@ export interface FullPlanPromptInput {
   state: InterviewState;
   missing: MissingInfo[];
   details?: string | null;
+  services?: string[];
 }
 
 const localTime = (iso: string, timeZone: string) =>
@@ -196,6 +200,7 @@ export function buildFullPlanPrompt(input: FullPlanPromptInput): { system: strin
     `budget: ${event.budget_amount === null ? "not set" : `${event.budget_amount} ${event.currency}`}; currency: ${event.currency}`,
     event.city ? `city: ${clip(oneLine(event.city), 60)}` : null,
     event.venue_type ? `venue: ${event.venue_type}` : null,
+    input.services?.length ? `services needed from vendors: ${input.services.join(", ")}` : null,
   ].filter(Boolean);
   const answers = input.state.answered
     .filter((a) => a.value !== null)

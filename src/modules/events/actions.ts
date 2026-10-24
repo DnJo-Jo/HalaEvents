@@ -21,7 +21,7 @@ export async function createEventAction(_prev: FormState, form: FormData): Promi
       id = await service.createEvent(data);
     },
   );
-  if (result.ok && id) redirect(`/app/events/${id}`);
+  if (result.ok && id) redirect(`/app/events/${id}/services`);
   return result;
 }
 

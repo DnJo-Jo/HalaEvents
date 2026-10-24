@@ -118,7 +118,12 @@ export function planInputHash(
     answers: state.answered.map((a) => [a.question.key, a.value]),
     // Custom drafts also read the organizer's free-text details; template plans don't.
     ...(draft
-      ? { draft: [draft.promptVersion, draft.model], details: event.additional_details ?? null }
+      ? {
+          draft: [draft.promptVersion, draft.model],
+          details: event.additional_details ?? null,
+          // Left out when none are selected, so existing events keep their fingerprint.
+          ...(event.services.length ? { services: event.services } : {}),
+        }
       : {}),
   });
 }
@@ -293,6 +298,7 @@ async function customDraft(
     state: c.state,
     missing: missingInformation(c.playbook, c.ctx),
     details: c.event.additional_details,
+    services: c.event.services,
   };
   // Full: only event facts and answers are sent. Hybrid: also the playbook's baseline rows.
   const prompt = full

@@ -775,6 +775,22 @@ and list it in `conflicts`" (prompts `planning.full@2`, `planning.plan@3`). `con
 shown as a warning on the plan page. The custom-draft fingerprint includes the details, so editing them marks a custom draft
 out of date and the next regenerate sends the new text; template plans don't read the details and aren't affected.
 
+### 16.5 Services and vendor discovery (2026-10-24)
+After creating an event the organizer is sent to `/services` ("What services do you need?": venue, catering,
+transportation; any subset, including none; editable later). Stored in `events.services text[]` (migration
+`20261024000005`), written via `save_event_services()` (same guard as the details). Services are planning context only:
+the interview is unchanged, they are sent to custom drafts as one line and are part of the custom-draft fingerprint
+(left out when empty, so existing events keep theirs); template plans ignore them. Saving makes no vendor or AI call.
+`/vendors`: one tab per selected service; the organizer edits the location and radius (5/15/30/50 km, default the
+event's location or city) and clicks *Find vendors*: one Geoapify geocode + one places request (`src/lib/integrations/
+geoapify.ts`, key `GEOAPIFY_API_KEY` server-side only, x-api-key header, 10 s timeout, no retries, no AI). Categories:
+venue `activity.events_venue`, catering `catering.restaurant`, transport `rental.car` (all verified live). Up to three
+results per search, validated with Zod, never invented; results are candidate businesses, not confirmed vendors, and
+carry no ratings, prices or availability. Cards: name, address, `tel:` phone or "Phone not available", website, map link,
+category placeholder thumbnail. Search results are not stored. *Shortlist* stores a snapshot of the returned fields
+(`event_vendor_shortlist`, per event, written via `shortlist_vendor` / `set_vendor_note` / `remove_shortlisted_vendor`,
+members read under RLS) plus the organizer's note. Attribution: "Powered by Geoapify · © OpenStreetMap contributors".
+
 ## 17. Planning engine, plan proposals (engine since 2026-10-23; AI adapter 2026-10-22, removed)
 
 ### 17.0 Current architecture: the playbook engine (2026-10-23)

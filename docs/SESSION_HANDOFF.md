@@ -1,5 +1,8 @@
 # Session Handoff
 
+## Last session: 2026-10-24 — service selection + Geoapify vendor discovery
+- Built (event.md §16.5). **Needs approval:** push migration `20261024000005` (dry-run first); add `GEOAPIFY_API_KEY` to the hosted/server env. Not run: `next build`, a browser check of `/services` and `/vendors`. Next: vendor agent using the approved plan; quote requests via the approvals gate.
+
 ## Last session: 2026-10-24 — additional event details
 - Built (event.md §16.4); migration `20261024000004` pushed and verified on hosted; checked in a headless browser. Next: a live custom draft with details filled in (check the conflicts warning), then vendor discovery.
 

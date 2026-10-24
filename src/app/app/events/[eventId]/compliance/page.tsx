@@ -86,7 +86,7 @@ export default async function CompliancePage({ params }: { params: Promise<{ eve
           title="No checks yet"
           description={
             canEdit
-              ? "Answer the planning interview, then run the checks."
+              ? "Talk to Hala, then run the checks."
               : "The organizers haven't run the checks yet."
           }
         />

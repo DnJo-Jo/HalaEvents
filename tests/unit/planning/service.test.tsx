@@ -63,6 +63,7 @@ function setup(
       venue_type: "indoor",
       location_text: null,
       city: "Dubai",
+      services: [],
       country: "AE",
       timezone: "Asia/Dubai",
       starts_at: future(60),

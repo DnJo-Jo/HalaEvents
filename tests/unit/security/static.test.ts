@@ -80,7 +80,7 @@ describe("static security checks (regression guards, not a security guarantee)",
   it("only the integrations call external hosts", () => {
     const hosts = files
       .filter((f) =>
-        /https:\/\/(?!example\.|www\.w3\.org|open-meteo\.com\/|claude\.com)[a-z.-]+\.(com|ai|dev|io)\//.test(
+        /https:\/\/(?!example\.|www\.w3\.org|open-meteo\.com\/|claude\.com|www\.geoapify\.com\/|www\.google\.com\/maps)[a-z.-]+\.(com|ai|dev|io)\//.test(
           f.s,
         ),
       )
