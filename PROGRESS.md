@@ -384,3 +384,17 @@ Decision (user): provider-independent AI behind one gateway; Cloudflare Workers 
 - ✅ 2026-10-24 Additional event details: migration `20261024000004_event_additional_details.sql` (column + `save_event_details`; **PGlite only, not pushed**), interview-page section with examples, prompts `planning.full@2` / `planning.plan@3` with a fenced details block and `conflicts` output (shown on the plan page), custom-draft fingerprint includes the details. Tests: DB interview/events/schema 64 ✅ (DB workers lowered 3→2 after another SIGKILL with the dev server running), unit 476 ✅, lint/typecheck/format ✅.
 - ✅ 2026-10-24 (user-approved): pushed `20261024000004`; 21/21 applied; column + `save_event_details` (authenticated only, no direct column update), RLS intact, data intact. Headless check on hosted via the running dev server: event pages load, details section saves, survives reload, clears; no 5xx.
 - ✅ 2026-10-24 Service selection + Geoapify vendor discovery (event.md §16.5): migration `20261024000005_event_vendors.sql` (events.services, event_vendor_shortlist + 4 functions; **PGlite only, not pushed**), `/services` and `/vendors` pages, `src/lib/integrations/geoapify.ts`, `src/modules/vendors/`, services in custom-draft prompt + fingerprint. Verified Geoapify categories/response live (4 requests, limit 1). Tests: unit 495 ✅, db 302 ✅; lint, typecheck, format ✅; `next build` not run.
+
+## Step 2: vendor email drafts with Gmail redirect (2026-10-24)
+- Done: "Draft email" on the event dashboard → `/app/events/[id]/email`. Pick a shortlisted vendor or a service; the app writes a quotation request from persisted event facts (`src/modules/email/`). Editable To/Subject/Message preview, "Open in Gmail" (compose URL, `src/lib/integrations/gmail-compose.ts`) and "Copy email".
+- AI: one gateway request per explicit click (`email.quote@1`), body only; greeting, subject and sign-off come from code. Output rejected if it has URLs, emails, phones, placeholders or confirmations → labelled template fallback. Identical requests are served from an in-memory cache; 3 requests/user/minute. No `ai_runs` row (its `pipeline` is CHECK-constrained to plan; no migration added).
+- Subject carries a stable reference `HE-XXXXXXXX` (hash of event + category + place id) so Step 3 can match replies by recomputing it.
+- Not done by design: Gmail OAuth, inbox reading, sending, marking emails as sent.
+- Tests: `tests/unit/email/` (23). `npm run verify` pieces run: lint, typecheck, format:check, test:unit (525), build.
+
+## Step 3: manual Gmail inbox agent (prototype, 2026-10-24)
+- Done: Connect Gmail (read-only OAuth, `/api/integrations/gmail/connect` + `/callback`), Check for replies, Analyze reply, "Vendor replies" card on the event dashboard (`src/modules/inbox/`, `src/lib/integrations/gmail.ts`, `src/components/inbox/inbox-card.tsx`).
+- DB: migration `20261024000006_gmail_inbox.sql` (`gmail_connections`, `vendor_replies`) — NOT applied to hosted Supabase; local PGlite tests only (`tests/db/gmail-inbox.test.ts`).
+- Env: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GMAIL_TOKEN_ENCRYPTION_KEY`, `GMAIL_DEMO_VENDOR_EMAIL` (server-only).
+- Replies come only from the one demo vendor address and only when they carry this event's `HE-` code. Everything is a manual click; nothing is sent. Analysis is one gateway request per reply, saved, price must appear in the email text.
+- Prototype limits: refresh token encrypted with an app key (no rotation); Google "Testing" mode needs test users.

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { EventStatusBadge, RequestStatusBadge } from "@/components/marketplace/status-badges";
 import { ActionForm } from "@/components/ui/action-form";
 import { Badge, DemoBadge } from "@/components/ui/badge";
-import { Button, ButtonLink, buttonClasses } from "@/components/ui/button";
+import { ButtonLink, buttonClasses } from "@/components/ui/button";
 import { Card, CardBody, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -19,7 +19,9 @@ import { changeEventStatusAction } from "@/modules/events/actions";
 import { EVENT_TRANSITIONS } from "@/modules/events/rules";
 import { describeTimelineEntry } from "@/modules/events/timeline";
 import { refreshRemindersAction } from "@/modules/notifications/actions";
+import { InboxCard } from "@/components/inbox/inbox-card";
 import { exportAvailability } from "@/modules/export/service";
+import { getInboxView } from "@/modules/inbox/service";
 import { getTaskBoard } from "@/modules/tasks/service";
 import { listRequestsForEvent } from "@/modules/bookings/service";
 import { getEventForMember, getTimeline } from "@/modules/events/service";
@@ -29,8 +31,15 @@ import { CATEGORY_LABELS, formatMoney } from "@/modules/profiles/labels";
 
 export const metadata: Metadata = { title: "Event" };
 
-export default async function EventPage({ params }: { params: Promise<{ eventId: string }> }) {
+export default async function EventPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ eventId: string }>;
+  searchParams: Promise<{ gmail?: string }>;
+}) {
   const { eventId } = await params;
+  const { gmail } = await searchParams;
   if (!z.uuid().safeParse(eventId).success) notFound();
   const { event: e, role, canManage } = await getEventForMember(eventId);
   const [shortlist, requests, board, compliance, timeline, canExport] = await Promise.all([
@@ -41,6 +50,8 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
     getTimeline(eventId, 15),
     canManage ? exportAvailability(eventId) : false,
   ]);
+  // The reply tracker must never take the dashboard down (e.g. before its migration is applied).
+  const inbox = canManage ? await getInboxView(eventId).catch(() => null) : null;
   const p = board.progress;
   const openChecks = compliance.checks.filter(
     (c) => !["cleared", "rejected", "closed"].includes(c.status),
@@ -199,15 +210,18 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
             <div className="space-y-2 rounded-md border border-line p-3">
               <p className="font-medium">Draft Email in Gmail</p>
               <p className="text-sm text-ink-muted">
-                Draft messages to your shortlisted vendors for your approval.
+                Write a quotation request for a vendor, then review it and send it from Gmail.
+                Nothing is sent for you.
               </p>
-              <Button size="sm" variant="secondary" disabled>
-                Coming next
-              </Button>
+              <ButtonLink href={`/app/events/${e.id}/email`} size="sm" variant="secondary">
+                Draft email
+              </ButtonLink>
             </div>
           </CardBody>
         </Card>
       )}
+
+      {inbox && <InboxCard eventId={e.id} inbox={inbox} flag={gmail} />}
 
       <Card>
         <CardBody>

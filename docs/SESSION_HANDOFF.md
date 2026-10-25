@@ -468,3 +468,10 @@ Finish **P0** starting at step 1 (clean `npm install`, then read bundled Next 16
 - Playbooks: `/playbooks/{university-hackathon,conference,workshop}.json`, registered in `src/playbooks/index.ts`. To add an event type: JSON playbook + `EventType` enum + CHECK migration + `EVENT_TYPE_LABELS`; the tests in `tests/unit/planning/engine.test.ts` (dependency order, schedule, no-AI scans) and `tests/db/ai.test.ts` then cover it if you add it to their lists.
 - `.env.local` no longer has AI variables. A dev server (`next-server`) was already running when `npm run verify` ran the build, so **restart `npm run dev`** (shared `.next`).
 - Next: browser walkthrough of Plan / Interview / Messages / Incidents; hosted Supabase: apply migration `20261023000003`; decide whether to edit assumptions in place.
+
+## Session 2026-10-24: Step 2 (Gmail compose drafts)
+- Read `PROGRESS.md` last section. New: `src/modules/email/*`, `src/components/email/email-draft.tsx`, `src/lib/integrations/gmail-compose.ts`, route `events/[eventId]/email`. Step 1 export untouched.
+- Next (Step 3, needs approval): Gmail OAuth + inbox read, matching replies via the `HE-` reference (`emailReference()` in `rules.ts`), `is_mock` handling, tracking "sent" only from real Gmail data. Not browser-tested live; run `npm run dev` and try it with `AI_PROVIDER=none` and with Cloudflare configured.
+
+## Session 2026-10-24 (later): Step 3 Gmail inbox agent
+- See `PROGRESS.md` last section. To use it: apply migration `20261024000006` to the database, set the four env vars, add both Gmail accounts as Google test users. Nothing committed for Step 2/3 yet.

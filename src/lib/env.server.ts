@@ -71,6 +71,19 @@ export const ServerEnvSchema = z
         .regex(/^@?[a-z0-9][a-z0-9@/._-]{2,120}$/i, "is not a model id")
         .optional(),
     ),
+    // Gmail inbox agent (read-only OAuth). All unset = "Connect Gmail" reports it isn't available.
+    GOOGLE_OAUTH_CLIENT_ID: optional,
+    GOOGLE_OAUTH_CLIENT_SECRET: optional,
+    GMAIL_TOKEN_ENCRYPTION_KEY: z.preprocess(
+      (v) => (v === "" ? undefined : v),
+      z
+        .string()
+        .trim()
+        .refine((v) => Buffer.from(v, "base64").length === 32, "must be 32 random bytes, base64")
+        .optional(),
+    ),
+    // Prototype: replies are read only from this one sender address.
+    GMAIL_DEMO_VENDOR_EMAIL: z.preprocess((v) => (v === "" ? undefined : v), z.email().optional()),
     // A cap, not a spend (billing counts generated tokens). 10-15 compact tasks ≈ 2.2k-3.8k tokens,
     // so 4096 leaves headroom; a draft cut off at the cap fails validation and is never saved.
     AI_PLAN_MAX_OUTPUT_TOKENS: intIn(256, 8192, 4096),
